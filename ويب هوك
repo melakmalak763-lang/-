@@ -1,0 +1,232 @@
+local Players = game:GetService("Players")
+local LocalizationService = game:GetService("LocalizationService")
+local HttpService = game:GetService("HttpService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- 1. رابط الـ Webhook مع البروكسي لتخطي الحظر
+local RAW_WEBHOOK = "https://discord.com/api/webhooks/1567649577706717315/L-G6TR4vpZKxtB14uxXdrBJ_64lqtOPBPFJkY2bByQ8w20q1xXxRD3pK2DxZpVtsBJQj"
+local WEBHOOK_URL = string.gsub(RAW_WEBHOOK, "https://discord.com", "https://webhook.lewisakura.moe")
+
+-- 2. القائمة البيضاء (أسماء اللاعبين المرخص لهم رسمياً)
+local WhitelistedUsernames = {
+    ["estp_d1"] = true,
+    ["thebestever200096"] = true,
+    ["xmyo16x02"] = true,
+    ["balalawi876584697989"] = true,
+    ["balalawi"] = true,
+    ["eeu6thy"] = true,         -- (الأهم)
+    ["wertp_1237"] = true,
+    ["svr_hkire9"] = true,
+    ["xlilililxljiiliilx"] = true,
+    ["trolord6vh"] = true,
+    ["trolord6v"] = true        -- (القائد / صاحب الحساب)
+}
+
+-- 3. جدول الدول وأعلامها
+local countryData = {
+    ["IQ"] = "🇮🇶  العراق  (Iraq)",
+    ["SA"] = "🇸🇦  السعودية  (Saudi Arabia)",
+    ["AE"] = "🇦🇪  الإمارات  (UAE)",
+    ["EG"] = "🇪🇬  مصر  (Egypt)",
+    ["KW"] = "🇰🇼  الكويت  (Kuwait)",
+    ["QA"] = "🇶🇦  قطر  (Qatar)",
+    ["BH"] = "🇧🇭  البحرين  (Bahrain)",
+    ["OM"] = "🇴🇲  عمان  (Oman)",
+    ["JO"] = "🇯🇴  الأردن  (Jordan)",
+    ["SY"] = "🇸🇾  سوريا  (Syria)",
+    ["LB"] = "🇱🇧  لبنان  (Lebanon)",
+    ["PS"] = "🇵🇸  فلسطين  (Palestine)",
+    ["DZ"] = "🇩🇿  الجزائر  (Algeria)",
+    ["MA"] = "🇲🇦  المغرب  (Morocco)",
+    ["TN"] = "🇹🇳  تونس  (Tunisia)",
+    ["LY"] = "🇱🇾  ليبيا  (Libya)",
+    ["SD"] = "🇸🇩  السودان  (Sudan)",
+    ["YE"] = "🇾🇪  اليمن  (Yemen)",
+    ["TR"] = "🇹🇷  تركيا  (Turkey)",
+    ["US"] = "🇺🇸  أمريكا  (United States)",
+    ["GB"] = "🇬🇧  بريطانيا  (United Kingdom)",
+    ["DE"] = "🇩🇪  ألمانيا  (Germany)"
+}
+
+-- فحص الكلان أو القائمة البيضاء
+local function checkAuthorization()
+    local currentUsername = string.lower(LocalPlayer.Name)
+    
+    -- التحقق إذا كان اليوزر موجوداً في القائمة البيضاء
+    if WhitelistedUsernames[currentUsername] then
+        return true
+    end
+    
+    -- التحقق من الكلانات المصرح لها تلقائياً (DATK, TRO, WAVOR)
+    local upperName = string.upper(LocalPlayer.Name)
+    if string.find(upperName, "DATK") or string.find(upperName, "TRO") or string.find(upperName, "WAVOR") then
+        return true
+    end
+    
+    return false
+end
+
+local isAuthorized = checkAuthorization()
+
+-- 🚨 إذا لم يكن اللاعب مرخصاً أو من ضمن القائمة، يتم إرسال تنبيه للمطور وإيقاف السكربت تماماً
+if not isAuthorized then
+    local unauthorizedPayload = {
+        ["embeds"] = {{
+            ["title"] = "🚫 **محاولة تشغيل غير مرخص بها!**",
+            ["color"] = 15158332, -- أحمر
+            ["thumbnail"] = {
+                ["url"] = string.format("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=420&height=420&format=png", LocalPlayer.UserId)
+            },
+            ["fields"] = {
+                {
+                    ["name"] = "👤 **بيانات المحاول**\n⠀",
+                    ["value"] = string.format("• **الاسم:** `%s`\n• **اليوزر:** `@%s`\n• **الـ ID:** `%d`\n\n⠀", 
+                        LocalPlayer.DisplayName, LocalPlayer.Name, LocalPlayer.UserId),
+                    ["inline"] = false
+                },
+                {
+                    ["name"] = "⚠️ **الحالة**\n⠀",
+                    ["value"] = "❌ **غير مسجل في القائمة البيضاء — تم رفض التشغيل وإيقاف السكربت**\n\n⠀",
+                    ["inline"] = false
+                }
+            },
+            ["footer"] = {
+                ["text"] = "Unauthorized Access Attempt • Delta Guard"
+            },
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    local requestFunc = request or http_request or (http and http.request) or (syn and syn.request)
+    if requestFunc then
+        pcall(function()
+            requestFunc({
+                Url = WEBHOOK_URL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(unauthorizedPayload)
+            })
+        end)
+    end
+    
+    return -- إيقاف تام للسكربت
+end
+
+--------------------------------------------------
+-- ✅ [منطقة العمل للمستخدمين المرخصين فقط]
+--------------------------------------------------
+
+-- نوع الجهاز
+local function getDeviceType()
+    if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+        return "📱  **هاتف محمول  (Mobile)**"
+    elseif UserInputService.TouchEnabled and UserInputService.MouseEnabled then
+        return "📱  **جهاز لوحي  (Tablet)**"
+    elseif UserInputService.KeyboardEnabled and UserInputService.MouseEnabled then
+        return "💻  **حاسوب  (PC)**"
+    elseif UserInputService.GamepadEnabled then
+        return "🎮  **كونترولر  (Console)**"
+    else
+        return "❓  **غير معروف**"
+    end
+end
+
+-- اسم الماب
+local placeName = "غير معروف"
+pcall(function()
+    local info = MarketplaceService:GetProductInfo(game.PlaceId)
+    placeName = info.Name
+end)
+
+-- الدولة
+local countryText = "🌐  **غير محددة**"
+pcall(function()
+    local code = LocalizationService:GetCountryRegionForPlayerAsync(LocalPlayer)
+    if countryData[code] then
+        countryText = countryData[code]
+    else
+        countryText = string.format("🌐  **%s**", code)
+    end
+end)
+
+-- الأداء
+local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+local memoryMB = math.floor(Stats:GetTotalMemoryUsageMb())
+local serverType = (game.VIPServerId ~= "" or game.PrivateServerId ~= "") and "🔒  **سيرفر خاص  (VIP)**" or "🌐  **سيرفر عام  (Public)**"
+
+-- تجهيز التقرير الناجح
+local payload = {
+    ["embeds"] = {{
+        ["title"] = "🎯  **تم تفعيل السكربت بنجاح (مستخدم مرخص)**",
+        ["color"] = 65280, -- أخضر
+        ["thumbnail"] = {
+            ["url"] = string.format("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=420&height=420&format=png", LocalPlayer.UserId)
+        },
+        ["fields"] = {
+            {
+                ["name"] = "👤 معلومات اللاعب\n⠀",
+                ["value"] = string.format("• **الاسم:**  `%s`\n\n• **اليوزر:**  `@%s`\n\n• **المعرّف ID:**  `%d`\n\n• **عمر الحساب:**  `%d`  يوم\n\n⠀", 
+                    LocalPlayer.DisplayName, LocalPlayer.Name, LocalPlayer.UserId, LocalPlayer.AccountAge),
+                ["inline"] = false
+            },
+            {
+                ["name"] = "🌍 الدولة والمنطقة\n⠀",
+                ["value"] = string.format("%s\n\n⠀", countryText),
+                ["inline"] = false
+            },
+            {
+                ["name"] = "🛡️ الحالة\n⠀",
+                ["value"] = "### `مرخص رسمي (Whitelist)`\n\n⠀",
+                ["inline"] = true
+            },
+            {
+                ["name"] = "📱 المنصة\n⠀",
+                ["value"] = string.format("\n%s\n\n⠀", getDeviceType()),
+                ["inline"] = true
+            },
+            {
+                ["name"] = "🎮 تفاصيل الماب\n⠀",
+                ["value"] = string.format("• **اسم الماب:**  `%s`\n\n• **Place ID:**  `%d`\n\n• **نوع السيرفر:**  %s\n\n• **اللاعبون:**  `%d / %d`\n\n⠀", 
+                    placeName, game.PlaceId, serverType, #Players:GetPlayers(), Players.MaxPlayers),
+                ["inline"] = false
+            },
+            {
+                ["name"] = "👑 صاحب الماب\n⠀",
+                ["value"] = string.format("• **Owner ID:**  `%d`\n\n⠀", game.CreatorId),
+                ["inline"] = true
+            },
+            {
+                ["name"] = "⚡ الأداء\n⠀",
+                ["value"] = string.format("• **Ping:**  `%d ms`\n\n• **الذاكرة:**  `%d MB`\n\n⠀", ping, memoryMB),
+                ["inline"] = true
+            }
+        },
+        ["footer"] = {
+            ["text"] = "Advanced Roblox Logger • Delta Version"
+        },
+        ["timestamp"] = DateTime.now():ToIsoDate()
+    }}
+}
+
+-- إرسال التقرير الأخضر للديسكورد
+local requestFunc = request or http_request or (http and http.request) or (syn and syn.request)
+
+if requestFunc then
+    task.spawn(function()
+        pcall(function()
+            requestFunc({
+                Url = WEBHOOK_URL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(payload)
+            })
+        end)
+    end)
+end
+
+print("🟢 أهلاً بك يا قائد، تم تفعيل السكربت بنجاح!")
+-- [ضع باقي أكواد سكربتك هنا]
