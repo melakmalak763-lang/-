@@ -1,0 +1,1338 @@
+--[[
+    FFF — Signature Interface (Final + Timed Void)
+    Features: Dual Spam, Avatar, BANG, Anti-Sit, Timed Void, Anti-AFK, Auto Clicker, FFF Protection, Dev Profiles.
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Chat = game:GetService("Chat")
+local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local old = playerGui:FindFirstChild("FFF")
+if old then old:Destroy() end
+
+local C = {
+    bg = Color3.fromRGB(15, 16, 18),
+    panel = Color3.fromRGB(22, 23, 26),
+    panel2 = Color3.fromRGB(29, 30, 34),
+    panel3 = Color3.fromRGB(36, 37, 42),
+    line = Color3.fromRGB(65, 67, 73),
+    white = Color3.fromRGB(244, 244, 246),
+    soft = Color3.fromRGB(177, 179, 185),
+    muted = Color3.fromRGB(112, 115, 123),
+    accent = Color3.fromRGB(205, 207, 214),
+    black = Color3.fromRGB(8, 9, 11),
+}
+
+local function make(class, props, parent)
+    local obj = Instance.new(class)
+    for k, v in pairs(props or {}) do obj[k] = v end
+    obj.Parent = parent
+    return obj
+end
+
+local function round(obj, px) make("UICorner", {CornerRadius = UDim.new(0, px)}, obj) end
+
+local function outline(obj, color, thickness, transparency)
+    return make("UIStroke", {
+        Color = color or C.line, Thickness = thickness or 1, Transparency = transparency or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    }, obj)
+end
+
+local function gradient(obj, rotation, a, b)
+    make("UIGradient", {Rotation = rotation or 0, Color = ColorSequence.new(a, b)}, obj)
+end
+
+local function tw(obj, duration, props, style)
+    local t = TweenService:Create(obj, TweenInfo.new(duration, style or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props)
+    t:Play()
+    return t
+end
+
+-- ============================================================
+-- SHINE SYSTEM
+-- ============================================================
+local shines = {}
+local function addShine(textObj, opts)
+    opts = opts or {}
+    local speed = opts.speed or 1.8
+    local waitTime = opts.wait or 1.2
+    local continuous = opts.continuous == true
+    local shineColor = opts.shineColor or Color3.fromRGB(255, 255, 255)
+    local getColor = opts.getColor or function() return textObj.TextColor3 end
+
+    local grad = Instance.new("UIGradient")
+    grad.Parent = textObj
+    grad.Offset = Vector2.new(-0.7, 0)
+
+    local function refresh()
+        local base = getColor()
+        grad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, base), ColorSequenceKeypoint.new(0.30, base),
+            ColorSequenceKeypoint.new(0.50, shineColor),
+            ColorSequenceKeypoint.new(0.70, base), ColorSequenceKeypoint.new(1.00, base),
+        })
+    end
+    refresh()
+
+    local data = {gradient = grad, refresh = refresh}
+    if continuous then
+        data.speed = speed; data.waitTime = waitTime; data.time = math.random() * (speed + waitTime)
+        table.insert(shines, data)
+    else
+        function data.playOnce()
+            refresh(); grad.Offset = Vector2.new(-0.7, 0)
+            TweenService:Create(grad, TweenInfo.new(speed, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Offset = Vector2.new(0.7, 0)}):Play()
+        end
+    end
+    return data
+end
+
+local function label(parent, text, pos, size, fontSize, color, font, align, shineOpts)
+    local lbl = make("TextLabel", {
+        Position = pos, Size = size, BackgroundTransparency = 1, Text = text,
+        TextColor3 = color or C.white, TextSize = fontSize or 14, Font = font or Enum.Font.Gotham,
+        TextXAlignment = align or Enum.TextXAlignment.Right, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 5
+    }, parent)
+    if shineOpts then
+        if type(shineOpts) == "boolean" then shineOpts = {} end
+        addShine(lbl, {speed = shineOpts.speed or 1.8, wait = shineOpts.wait or 1.2, continuous = true, getColor = function() return lbl.TextColor3 end})
+    end
+    return lbl
+end
+
+local function button(parent, text, pos, size, bg, fg, fontSize)
+    local b = make("TextButton", {
+        Position = pos, Size = size, BackgroundColor3 = bg or C.panel2, BorderSizePixel = 0,
+        Text = text, TextColor3 = fg or C.white, TextSize = fontSize or 14, Font = Enum.Font.GothamSemibold,
+        AutoButtonColor = false, ZIndex = 6
+    }, parent)
+    round(b, 10)
+    local bShine = addShine(b, {speed = 0.9, continuous = false})
+    b.MouseEnter:Connect(function()
+        if b.BackgroundColor3 == C.panel2 or b.BackgroundColor3 == C.panel3 then tw(b, 0.12, {BackgroundColor3 = C.line}) end
+        bShine.playOnce()
+    end)
+    b.MouseLeave:Connect(function()
+        if b.BackgroundColor3 == C.line then tw(b, 0.12, {BackgroundColor3 = bg or C.panel2}) end
+    end)
+    return b
+end
+
+-- ============================================================
+-- HELPER: GET PLAYER
+-- ============================================================
+local function getPlayer(query)
+    if not query or query == "" then return nil end
+    local q = query:lower()
+    for _, p in ipairs(Players:GetPlayers()) do if p.Name:lower() == q or p.DisplayName:lower() == q then return p end end
+    for _, p in ipairs(Players:GetPlayers()) do if p.Name:lower():sub(1, #q) == q or p.DisplayName:lower():sub(1, #q) == q then return p end end
+    for _, p in ipairs(Players:GetPlayers()) do if p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true) then return p end end
+    return nil
+end
+
+-- ============================================================
+-- GUI ROOT & RESPONSIVE SCALING
+-- ============================================================
+local gui = make("ScreenGui", {Name = "FFF", ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 999}, playerGui)
+local veil = make("Frame", {Name = "AmbientVeil", Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.black, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 0}, gui)
+
+local window = make("Frame", {
+    Name = "Window", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.fromOffset(900, 590), BackgroundColor3 = C.bg, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 2
+}, gui)
+round(window, 22); outline(window, Color3.fromRGB(92, 94, 102), 1.25, 0.15); gradient(window, 125, Color3.fromRGB(29, 30, 34), Color3.fromRGB(13, 14, 16))
+
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = window
+
+local shadow = make("ImageLabel", {
+    Name = "Shadow", AnchorPoint = Vector2.new(0.5, 0.5), Position = window.Position,
+    Size = UDim2.fromOffset(980, 670), BackgroundTransparency = 1, Image = "rbxassetid://1316045217",
+    ImageColor3 = Color3.new(0, 0, 0), ImageTransparency = 0.25, ScaleType = Enum.ScaleType.Slice,
+    SliceCenter = Rect.new(10, 10, 118, 118), ZIndex = 1
+}, gui)
+
+local function updateShadow()
+    shadow.Position = window.Position
+    local s = uiScale.Scale
+    shadow.Size = UDim2.fromOffset((900 * s) + 80, (590 * s) + 80)
+end
+
+local function updateScale()
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+    local viewport = camera.ViewportSize
+    
+    local scaleX = (viewport.X - 60) / 900
+    local scaleY = (viewport.Y - 60) / 590
+    local finalScale = math.min(scaleX, scaleY, 0.85)
+    
+    uiScale.Scale = finalScale
+    updateShadow()
+end
+
+if workspace.CurrentCamera then
+    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+    updateScale()
+end
+
+local top = make("Frame", {Size = UDim2.new(1, 0, 0, 76), BackgroundColor3 = Color3.fromRGB(19, 20, 23), BorderSizePixel = 0, ZIndex = 3}, window)
+gradient(top, 0, Color3.fromRGB(35, 36, 40), Color3.fromRGB(19, 20, 23))
+
+local emblem = make("Frame", {Position = UDim2.fromOffset(22, 16), Size = UDim2.fromOffset(43, 43), BackgroundColor3 = Color3.fromRGB(47, 48, 54), BorderSizePixel = 0, Rotation = 45, ZIndex = 5}, top)
+round(emblem, 11); outline(emblem, Color3.fromRGB(132, 134, 143), 1, 0.15)
+local emblemCore = make("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(17, 17), BackgroundColor3 = C.white, BorderSizePixel = 0, ZIndex = 6}, emblem)
+round(emblemCore, 5)
+
+label(top, "F F F", UDim2.fromOffset(82, 10), UDim2.fromOffset(230, 30), 19, C.accent, Enum.Font.GothamBlack, Enum.TextXAlignment.Left, {speed=1.0, wait=0.4})
+label(top, "واجهة خاصة / إصدار 026", UDim2.fromOffset(84, 39), UDim2.fromOffset(290, 19), 9, C.muted, Enum.Font.GothamMedium, Enum.TextXAlignment.Left, true)
+
+local liveDot = make("Frame", {Position = UDim2.new(1, -230, 0, 29), Size = UDim2.fromOffset(7, 7), BackgroundColor3 = Color3.fromRGB(220, 222, 228), BorderSizePixel = 0, ZIndex = 6}, top)
+round(liveDot, 7)
+label(top, "جلسة محلية", UDim2.new(1, -215, 0, 20), UDim2.fromOffset(125, 24), 10, C.soft, Enum.Font.GothamBold, Enum.TextXAlignment.Left, true)
+
+local minBtn = button(top, "—", UDim2.new(1, -76, 0, 17), UDim2.fromOffset(30, 30), C.panel3, C.soft, 18)
+local closeBtn = button(top, "×", UDim2.new(1, -39, 0, 17), UDim2.fromOffset(30, 30), C.panel3, C.soft, 21)
+
+-- ============================================================
+-- القابض الدائري للتحجيم (الزاوية اليمنى السفلية - يبرز للخارج)
+-- ============================================================
+local gripContainer = make("Frame", {
+    Size = UDim2.fromOffset(45, 45),
+    AnchorPoint = Vector2.new(1, 1),
+    Position = UDim2.new(1, 15, 1, 15),
+    BackgroundTransparency = 1,
+    ClipsDescendants = true,
+    ZIndex = 10
+}, window)
+
+local gripCircle = make("Frame", {
+    Size = UDim2.fromOffset(60, 60),
+    Position = UDim2.fromOffset(-15, -15),
+    BackgroundTransparency = 1,
+    ZIndex = 11
+}, gripContainer)
+round(gripCircle, 100)
+local gStroke = outline(gripCircle, C.white, 2.5, 0.2)
+
+for i = 1, 3 do
+    local line = make("Frame", {
+        Size = UDim2.fromOffset(2, 8),
+        Position = UDim2.fromOffset(25 + i * 4, 30 - i * 4),
+        Rotation = -45,
+        BackgroundColor3 = C.white,
+        BorderSizePixel = 0,
+        ZIndex = 12
+    }, gripCircle)
+    round(line, 2)
+end
+
+local gripHitbox = make("TextButton", {
+    Size = UDim2.fromScale(1, 1),
+    BackgroundTransparency = 1,
+    Text = "",
+    ZIndex = 13
+}, gripContainer)
+
+local resizing = false
+local resizeStart = nil
+local startScale = nil
+
+gripHitbox.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        resizing = true
+        resizeStart = input.Position
+        startScale = uiScale.Scale
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                resizing = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - resizeStart
+        local scaleChange = (delta.Y + delta.X) / 600
+        local newScale = math.clamp(startScale + scaleChange, 0.4, 1.2)
+        uiScale.Scale = newScale
+        updateShadow()
+    end
+end)
+
+-- ============================================================
+-- القائمة الجانبية والمحتوى
+-- ============================================================
+local rail = make("Frame", {Position = UDim2.fromOffset(16, 94), Size = UDim2.new(0, 205, 1, -111), BackgroundColor3 = Color3.fromRGB(19, 20, 23), BorderSizePixel = 0, ZIndex = 3}, window)
+round(rail, 16); outline(rail, Color3.fromRGB(51, 53, 59), 1, 0.25)
+label(rail, "مساحة العمل", UDim2.fromOffset(18, 16), UDim2.fromOffset(160, 22), 10, C.muted, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+local navHolder = make("Frame", {Position = UDim2.fromOffset(10, 51), Size = UDim2.new(1, -20, 0, 350), BackgroundTransparency = 1, ZIndex = 4}, rail)
+
+local content = make("Frame", {Position = UDim2.fromOffset(237, 94), Size = UDim2.new(1, -253, 1, -111), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 3}, window)
+
+local pageNames = {
+    {"⌂", "نظرة عامة"}, {"◉", "الاستهداف"}, {"⌘", "الكلبشة"}, {"🛡", "الحمايات"}, {"☆", "فويد"}, {"📢", "سبام"}
+}
+
+local pages, navButtons = {}, {}
+local selected = "نظرة عامة"
+
+local function newPage(name)
+    local p
+    if name == "نظرة عامة" or name == "الحمايات" then
+        p = make("ScrollingFrame", {
+            Name = name, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, 
+            Visible = name == selected, ZIndex = 3, ScrollBarThickness = 2, 
+            ScrollBarImageColor3 = C.muted, AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            CanvasSize = UDim2.new(0, 0, 0, 0)
+        })
+    else
+        p = make("Frame", {Name = name, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = name == selected, ZIndex = 3})
+    end
+    p.Parent = content
+    pages[name] = p
+    if name ~= "نظرة عامة" then
+        label(p, "المجلد / " .. string.upper(name), UDim2.fromOffset(4, 5), UDim2.new(1, -8, 0, 18), 9, C.muted, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+        label(p, name, UDim2.fromOffset(2, 31), UDim2.new(1, -4, 0, 42), 30, C.white, Enum.Font.GothamBlack, Enum.TextXAlignment.Right, true)
+        make("Frame", {Position = UDim2.new(1, -52, 0, 83), Size = UDim2.fromOffset(48, 2), BackgroundColor3 = C.soft, BorderSizePixel = 0, ZIndex = 5}, p)
+    end
+    return p
+end
+
+-- ============================================================
+-- [1] نظرة عامة
+-- ============================================================
+local overview = newPage("نظرة عامة")
+overview.CanvasSize = UDim2.new(0, 0, 0, 700) 
+
+local hero = make("Frame", {Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 205), BackgroundColor3 = Color3.fromRGB(32, 33, 37), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 4}, overview)
+round(hero, 18); outline(hero, Color3.fromRGB(82, 84, 91), 1, 0.25); gradient(hero, 18, Color3.fromRGB(47, 48, 54), Color3.fromRGB(23, 24, 27))
+local watermark = label(hero, "F", UDim2.new(1, -190, 0, -47), UDim2.fromOffset(220, 250), 220, Color3.fromRGB(255,255,255), Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
+watermark.TextTransparency = 0.94; watermark.Rotation = -8
+label(hero, "مرحباً بعودتك", UDim2.fromOffset(25, 25), UDim2.fromOffset(250, 20), 10, C.soft, Enum.Font.GothamBold, Enum.TextXAlignment.Left, true)
+label(hero, player.DisplayName, UDim2.fromOffset(23, 54), UDim2.new(0.68, 0, 0, 49), 31, C.white, Enum.Font.GothamBlack, Enum.TextXAlignment.Left, {speed=1.2, wait=0.6})
+label(hero, "@" .. player.Name .. "   /   عضو", UDim2.fromOffset(26, 103), UDim2.fromOffset(300, 22), 11, C.soft, Enum.Font.GothamMedium, Enum.TextXAlignment.Left, true)
+make("Frame", {Position = UDim2.fromOffset(26, 143), Size = UDim2.fromOffset(43, 2), BackgroundColor3 = C.white, BorderSizePixel = 0, ZIndex = 6}, hero)
+label(hero, "مساحتك. قوانينك.", UDim2.fromOffset(26, 154), UDim2.fromOffset(260, 22), 10, Color3.fromRGB(205,207,213), Enum.Font.GothamBold, Enum.TextXAlignment.Left, true)
+
+local function infoCard(parent, position, size, titleText, valueText, footText)
+    local card = make("Frame", {Position = position, Size = size, BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, parent)
+    round(card, 15); outline(card, Color3.fromRGB(57,59,65), 1, 0.25)
+    label(card, titleText, UDim2.fromOffset(16, 13), UDim2.new(1, -32, 0, 20), 10, C.muted, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+    local value = label(card, valueText, UDim2.fromOffset(15, 36), UDim2.new(1, -30, 0, 35), 25, C.white, Enum.Font.GothamBlack, Enum.TextXAlignment.Right, true)
+    label(card, footText, UDim2.fromOffset(16, 76), UDim2.new(1, -32, 0, 20), 10, C.soft, Enum.Font.GothamMedium, Enum.TextXAlignment.Right, true)
+    return card, value
+end
+local playerCard, playerNumber = infoCard(overview, UDim2.fromOffset(0, 222), UDim2.new(0.5, -8, 0, 112), "اللاعبين في السيرفر", tostring(#Players:GetPlayers()), "الجلسة الحالية")
+local timeCard, timeNumber = infoCard(overview, UDim2.new(0.5, 8, 0, 222), UDim2.new(0.5, -8, 0, 112), "الساعة المحلية", "--:--", "وقت جهازك")
+local session = make("Frame", {Position = UDim2.fromOffset(0, 348), Size = UDim2.new(1, 0, 0, 91), BackgroundColor3 = Color3.fromRGB(19, 20, 23), BorderSizePixel = 0, ZIndex = 4}, overview)
+round(session, 15); outline(session, Color3.fromRGB(54,56,62), 1, 0.3)
+label(session, "مدة الجلسة", UDim2.fromOffset(17, 13), UDim2.fromOffset(180, 18), 10, C.muted, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+local uptime = label(session, "00 : 00 : 00", UDim2.fromOffset(16, 35), UDim2.fromOffset(250, 34), 22, C.white, Enum.Font.GothamBlack, Enum.TextXAlignment.Right, true)
+label(session, "متصل محلياً", UDim2.new(1, -210, 0, 34), UDim2.fromOffset(190, 28), 10, C.soft, Enum.Font.GothamBold, Enum.TextXAlignment.Left, true)
+
+local function createDevCard(parent, name, username, yPos)
+    local card = make("Frame", {Position = UDim2.fromOffset(0, yPos), Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, parent)
+    round(card, 15); outline(card, Color3.fromRGB(57,59,65), 1, 0.25)
+
+    local avatar = make("ImageLabel", {
+        Position = UDim2.fromOffset(15, 10), Size = UDim2.fromOffset(60, 60),
+        BackgroundColor3 = C.bg, BorderSizePixel = 0, Image = "",
+        ZIndex = 5, ScaleType = Enum.ScaleType.Crop
+    }, card)
+    round(avatar, 100)
+    outline(avatar, C.line, 2, 0.2)
+
+    task.spawn(function()
+        local success, userId = pcall(function() return Players:GetUserIdFromNameAsync(username) end)
+        if success and userId then
+            avatar.Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=420&h=420", userId)
+        else
+            local ok, img = pcall(function()
+                return Players:GetUserThumbnailAsync(username, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+            end)
+            if ok and img then avatar.Image = img end
+        end
+    end)
+
+    label(card, name, UDim2.fromOffset(90, 15), UDim2.new(1, -100, 0, 25), 18, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Left, true)
+    label(card, "@" .. username, UDim2.fromOffset(90, 40), UDim2.new(1, -100, 0, 20), 13, C.soft, Enum.Font.GothamMedium, Enum.TextXAlignment.Left)
+end
+
+createDevCard(overview, "FFF", "Ffjjskw_5", 455)
+createDevCard(overview, "sukarza_305", "beengeneralbnn", 545)
+
+local dcCard = make("Frame", {Position = UDim2.fromOffset(0, 635), Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, overview)
+round(dcCard, 15); outline(dcCard, Color3.fromRGB(57,59,65), 1, 0.25)
+
+local dcBtn = make("TextButton", {
+    Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+    Text = "سيرفر الديسكورد الرسمي (اضغط للنسخ)", TextColor3 = C.soft,
+    TextSize = 13, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Center,
+    ZIndex = 5, AutoButtonColor = false
+}, dcCard)
+dcBtn.MouseEnter:Connect(function() dcBtn.TextColor3 = C.white end)
+dcBtn.MouseLeave:Connect(function() dcBtn.TextColor3 = C.soft end)
+dcBtn.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard("https://discord.gg/WRs88vKN5")
+        dcBtn.Text = "✅ تم نسخ الرابط!"
+        task.wait(2)
+        dcBtn.Text = "سيرفر الديسكورد الرسمي (اضغط للنسخ)"
+    end
+end)
+
+-- ============================================================
+-- [2] الاستهداف
+-- ============================================================
+local targetPage = newPage("الاستهداف")
+local targetCard = make("Frame", {Position = UDim2.fromOffset(0, 105), Size = UDim2.new(1, 0, 0, 260), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, targetPage)
+round(targetCard, 15); outline(targetCard, Color3.fromRGB(57,59,65), 1, 0.25)
+label(targetCard, "نظام الاستهداف", UDim2.fromOffset(16, 15), UDim2.new(1, -32, 0, 20), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+
+local targetAvatar = make("ImageLabel", {
+    Position = UDim2.fromOffset(16, 50), Size = UDim2.fromOffset(35, 35),
+    BackgroundColor3 = C.bg, BorderSizePixel = 0, Image = "",
+    ZIndex = 5, ScaleType = Enum.ScaleType.Fit
+}, targetCard)
+round(targetAvatar, 8); outline(targetAvatar, C.line, 1, 0.5)
+
+local targetBox = make("TextBox", {Size = UDim2.new(1, -76, 0, 35), Position = UDim2.fromOffset(60, 50), BackgroundColor3 = C.bg, TextColor3 = C.white, PlaceholderText = "اكتب اسم اللاعب...", PlaceholderColor3 = C.muted, Font = Enum.Font.Gotham, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false, ZIndex = 5}, targetCard)
+round(targetBox, 8); outline(targetBox, C.line, 1, 0.5)
+
+local isSearching = false
+targetBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if isSearching then return end
+    isSearching = true
+    local text = targetBox.Text
+    local found = getPlayer(text)
+    if found then
+        task.spawn(function()
+            local success, img = pcall(function()
+                return Players:GetUserThumbnailAsync(found.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+            end)
+            if success and img and targetBox.Text == text then
+                targetAvatar.Image = img
+            end
+        end)
+    else
+        targetAvatar.Image = ""
+    end
+    task.delay(0.3, function() isSearching = false end)
+end)
+
+local btnBang = button(targetCard, "BANG (استهداف)", UDim2.fromOffset(16, 100), UDim2.new(0.5, -20, 0, 40), C.panel2, C.white, 14)
+local btnFaceBang = button(targetCard, "FACE BANG", UDim2.new(0.5, 4, 0, 100), UDim2.new(0.5, -20, 0, 40), C.panel2, C.white, 14)
+local statusLabel = label(targetCard, "الحالة: جاهز", UDim2.fromOffset(16, 210), UDim2.new(1, -32, 0, 20), 12, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+-- ============================================================
+-- [3] الكلبشة
+-- ============================================================
+local cuffPage = newPage("الكلبشة")
+local cuffCard = make("Frame", {Position = UDim2.fromOffset(0, 105), Size = UDim2.new(1, 0, 0, 160), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, cuffPage)
+round(cuffCard, 15); outline(cuffCard, Color3.fromRGB(57,59,65), 1, 0.25)
+label(cuffCard, "أداة الكلبشة", UDim2.fromOffset(16, 15), UDim2.new(1, -32, 0, 20), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+
+local cuffBox = make("TextBox", {Size = UDim2.new(1, -32, 0, 35), Position = UDim2.fromOffset(16, 50), BackgroundColor3 = C.bg, TextColor3 = C.white, PlaceholderText = "اكتب اسم اللاعب للكلبشة...", PlaceholderColor3 = C.muted, Font = Enum.Font.Gotham, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false, ZIndex = 5}, cuffCard)
+round(cuffBox, 8); outline(cuffBox, C.line, 1, 0.5)
+
+local btnCuff = button(cuffCard, "كلبشة اللاعب", UDim2.fromOffset(16, 100), UDim2.new(1, -32, 0, 40), C.panel2, C.white, 14)
+local cuffStatus = label(cuffCard, "الحالة: جاهز", UDim2.fromOffset(16, 145), UDim2.new(1, -32, 0, 20), 12, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+-- ============================================================
+-- [4] الحمايات
+-- ============================================================
+local protPage = newPage("الحمايات")
+
+local card1 = make("Frame", {Position = UDim2.fromOffset(0, 105), Size = UDim2.new(1, 0, 0, 245), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, protPage)
+round(card1, 15); outline(card1, Color3.fromRGB(57,59,65), 1, 0.25)
+label(card1, "حماية اللاعب", UDim2.fromOffset(16, 15), UDim2.new(1, -32, 0, 20), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+
+local btnAntiSit = button(card1, "حماية التعليق (Anti-Sit)", UDim2.fromOffset(16, 45), UDim2.new(1, -32, 0, 38), C.panel2, C.white, 13)
+label(card1, "يمنع أي شخص من إجبارك على الجلوس أو السقوط.", UDim2.fromOffset(16, 87), UDim2.new(1, -32, 0, 15), 9, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+local btnSHAdmin = button(card1, "حماية الآدمن (FFF)", UDim2.fromOffset(16, 110), UDim2.new(1, -32, 0, 38), C.panel3, C.white, 13)
+label(card1, "يخفي واجهات وقوائم الآدمن (NV والكونسول) من شاشتك.", UDim2.fromOffset(16, 152), UDim2.new(1, -32, 0, 15), 9, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+local btnSHSpam = button(card1, "إخفاء رسائل السبام (FFF)", UDim2.fromOffset(16, 175), UDim2.new(1, -32, 0, 38), C.panel3, C.white, 13)
+label(card1, "يقوم بحذف إشعارات (System) المزعجة من الشاشة.", UDim2.fromOffset(16, 217), UDim2.new(1, -32, 0, 15), 9, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+local card2 = make("Frame", {Position = UDim2.fromOffset(0, 365), Size = UDim2.new(1, 0, 0, 170), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, protPage)
+round(card2, 15); outline(card2, Color3.fromRGB(57,59,65), 1, 0.25)
+label(card2, "المضادات التلقائية", UDim2.fromOffset(16, 15), UDim2.new(1, -32, 0, 20), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+
+local btnAntiAFK = button(card2, "مضاد الخروج (Anti-AFK) - إيقاف", UDim2.fromOffset(16, 45), UDim2.new(1, -32, 0, 38), C.panel2, C.white, 13)
+label(card2, "يمنع اللعبة من طردك عند بقائك بدون حركة.", UDim2.fromOffset(16, 87), UDim2.new(1, -32, 0, 15), 9, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+local btnAutoClicker = button(card2, "فتح أوتو كلكر (Auto Clicker)", UDim2.fromOffset(16, 110), UDim2.new(1, -32, 0, 38), C.panel3, C.white, 13)
+label(card2, "أداة تفتح نافذة للنقر التلقائي على نقاط تحددها.", UDim2.fromOffset(16, 152), UDim2.new(1, -32, 0, 15), 9, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+local card3 = make("Frame", {Position = UDim2.fromOffset(0, 550), Size = UDim2.new(1, 0, 0, 170), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, protPage)
+round(card3, 15); outline(card3, Color3.fromRGB(57,59,65), 1, 0.25)
+label(card3, "حماية النسخ", UDim2.fromOffset(16, 15), UDim2.new(1, -32, 0, 20), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+
+local btnCopyProt = button(card3, "تشغيل حماية النسخ", UDim2.fromOffset(16, 45), UDim2.new(1, -32, 0, 38), C.panel2, C.white, 13)
+label(card3, "يغير مظهرك باستمرار لمنع الآخرين من سرقة شكل شخصيتك.", UDim2.fromOffset(16, 87), UDim2.new(1, -32, 0, 15), 9, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+local btnCopyRaw = button(card3, "نسخ (تحميل الكود)", UDim2.fromOffset(16, 110), UDim2.new(1, -32, 0, 38), C.panel3, C.white, 13)
+label(card3, "يقوم بتحميل سكربت الحماية الخارجي (SSH).", UDim2.fromOffset(16, 152), UDim2.new(1, -32, 0, 15), 9, C.muted, Enum.Font.Gotham, Enum.TextXAlignment.Right)
+
+-- ============================================================
+-- [5] فويد (الانتقال للفضاء - تم التعديل ليعود تلقائياً بعد 3 ثواني)
+-- ============================================================
+local voidPage = newPage("فويد")
+local voidCard = make("Frame", {Position = UDim2.fromOffset(0, 105), Size = UDim2.new(1, 0, 0, 120), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, voidPage)
+round(voidCard, 15); outline(voidCard, Color3.fromRGB(57,59,65), 1, 0.25)
+label(voidCard, "نقل إلى الفضاء (Void Teleport)", UDim2.fromOffset(16, 15), UDim2.new(1, -32, 0, 20), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+local btnVoid = button(voidCard, "تنفيذ (Activate)", UDim2.fromOffset(16, 50), UDim2.new(1, -32, 0, 45), C.panel2, C.white, 14)
+
+local voidActive = false
+local savedCFrame
+btnVoid.MouseButton1Click:Connect(function()
+    if voidActive then return end
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    voidActive = true
+    savedCFrame = hrp.CFrame
+    btnVoid.Text = "جاري العودة بعد 3 ثواني..."
+    btnVoid.BackgroundColor3 = C.white
+    btnVoid.TextColor3 = C.black
+    
+    local success = pcall(function() hrp.CFrame = CFrame.new(999999, 999999, 999999) end)
+    
+    if success then
+        task.delay(3, function()
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and savedCFrame then
+                pcall(function() player.Character.HumanoidRootPart.CFrame = savedCFrame end)
+            elseif savedCFrame then
+                local newChar = player.CharacterAdded:Wait()
+                local newHrp = newChar:WaitForChild("HumanoidRootPart", 5)
+                if newHrp then pcall(function() newHrp.CFrame = savedCFrame end) end
+            end
+            
+            voidActive = false
+            btnVoid.Text = "تنفيذ (Activate)"
+            btnVoid.BackgroundColor3 = C.panel2
+            btnVoid.TextColor3 = C.white
+            savedCFrame = nil
+        end)
+    else
+        voidActive = false
+        btnVoid.Text = "تنفيذ (Activate)"
+        btnVoid.BackgroundColor3 = C.panel2
+        btnVoid.TextColor3 = C.white
+    end
+end)
+
+-- ============================================================
+-- [6] سبام (Spam)
+-- ============================================================
+local spamPage = newPage("سبام")
+local spamCard = make("Frame", {Position = UDim2.fromOffset(0, 105), Size = UDim2.new(1, 0, 0, 280), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 4}, spamPage)
+round(spamCard, 15); outline(spamCard, Color3.fromRGB(57,59,65), 1, 0.25)
+label(spamCard, "نظام السبام المخصص", UDim2.fromOffset(16, 15), UDim2.new(1, -32, 0, 20), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Right, true)
+
+local targetSpamBox = make("TextBox", {Size = UDim2.new(0.4, -8, 0, 35), Position = UDim2.fromOffset(16, 45), BackgroundColor3 = C.bg, TextColor3 = C.white, PlaceholderText = "اسم اللاعب المستهدف...", PlaceholderColor3 = C.muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false, ZIndex = 5}, spamCard)
+round(targetSpamBox, 6); outline(targetSpamBox, C.line, 1, 0.5)
+
+local speedSpamBox = make("TextBox", {Size = UDim2.new(0.3, -8, 0, 35), Position = UDim2.new(0.4, 8, 0, 45), BackgroundColor3 = C.bg, TextColor3 = C.white, Text = "1.5", PlaceholderText = "السرعة", PlaceholderColor3 = C.muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false, ZIndex = 5}, spamCard)
+round(speedSpamBox, 6); outline(speedSpamBox, C.line, 1, 0.5)
+
+local spamTypeToggle = button(spamCard, "النوع: الاثنين معاً", UDim2.new(0.3, 0, 0, 45), UDim2.fromOffset(0, 0), C.panel3, C.white, 11)
+spamTypeToggle.Position = UDim2.new(0.7, 0, 0, 45)
+
+local mainSpamBox = make("TextBox", {Size = UDim2.new(1, -32, 0, 100), Position = UDim2.fromOffset(16, 90), BackgroundColor3 = C.bg, TextColor3 = C.white, PlaceholderText = "النص هنا...", PlaceholderColor3 = C.muted, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, MultiLine = true, ClearTextOnFocus = false, ZIndex = 5}, spamCard)
+round(mainSpamBox, 6); outline(mainSpamBox, C.line, 1, 0.5)
+
+local btnPresetV1 = button(spamCard, "تعبئة v1", UDim2.fromOffset(16, 200), UDim2.new(0.33, -10, 0, 30), C.panel2, C.white, 12)
+local btnPresetV2 = button(spamCard, "تعبئة v2", UDim2.new(0.33, 5, 0, 200), UDim2.new(0.33, -10, 0, 30), C.panel2, C.white, 12)
+local btnSendSpam = button(spamCard, "بدء الإرسال", UDim2.new(0.66, 5, 0, 200), UDim2.new(0.34, -20, 0, 30), C.white, C.black, 14)
+
+local SPAM_V1 = ";NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs"
+local SPAM_V2 = ";NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE"
+
+btnPresetV1.MouseButton1Click:Connect(function() mainSpamBox.Text = SPAM_V1 end)
+btnPresetV2.MouseButton1Click:Connect(function() mainSpamBox.Text = SPAM_V2 end)
+
+local spamActive = false
+local spamMode = "Both"
+
+spamTypeToggle.MouseButton1Click:Connect(function()
+    if spamMode == "Both" then
+        spamMode = "Chat"
+        spamTypeToggle.Text = "النوع: شات فقط"
+    elseif spamMode == "Chat" then
+        spamMode = "Hidden"
+        spamTypeToggle.Text = "النوع: مخفي (HD فقط)"
+    else
+        spamMode = "Both"
+        spamTypeToggle.Text = "النوع: الاثنين معاً"
+    end
+end)
+
+local function sendChatMsg(str)
+    task.defer(function()
+        pcall(function()
+            if player.Character and player.Character:FindFirstChild("Head") then
+                Chat:Chat(player.Character.Head, str, Enum.ChatColor.White)
+            end
+        end)
+        local ev = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if ev then
+            local req = ev:FindFirstChild("SayMessageRequest")
+            if req then pcall(function() req:FireServer(str, "All") end) end
+        end
+    end)
+end
+
+local function sendHDAdmin(cmd)
+    task.defer(function()
+        pcall(function()
+            local hd = ReplicatedStorage:FindFirstChild("HDAdminHDClient")
+            if hd then
+                local sig = hd:FindFirstChild("Signals")
+                if sig then
+                    local rcm = sig:FindFirstChild("RequestCommandModification") or sig:FindFirstChild("RequestCommandSilent")
+                    if rcm then
+                        if rcm:IsA("RemoteFunction") then rcm:InvokeServer(cmd)
+                        else rcm:FireServer(cmd) end
+                    end
+                end
+            end
+        end)
+        pcall(function()
+            local events = ReplicatedStorage:FindFirstChild("Events")
+            if events and events:FindFirstChild("SendMessage") then
+                events.SendMessage:FireServer(cmd)
+            end
+        end)
+    end)
+end
+
+btnSendSpam.MouseButton1Click:Connect(function()
+    spamActive = not spamActive
+    if spamActive then
+        btnSendSpam.Text = "إيقاف الإرسال"
+        btnSendSpam.BackgroundColor3 = C.panel3
+        btnSendSpam.TextColor3 = C.white
+        
+        task.spawn(function()
+            while spamActive do
+                local rawText = mainSpamBox.Text
+                local targetName = targetSpamBox.Text
+                
+                local finalBlock = ""
+                if targetName ~= "" and rawText ~= "" then
+                    local parts = string.split(rawText, ";")
+                    local newParts = {}
+                    for _, part in ipairs(parts) do
+                        local trimmed = string.gsub(part, "^%s*(.-)%s*$", "%1")
+                        if trimmed ~= "" then
+                            table.insert(newParts, trimmed .. " " .. targetName)
+                        end
+                    end
+                    if #newParts > 0 then
+                        finalBlock = ";" .. table.concat(newParts, " ;")
+                    end
+                else
+                    finalBlock = rawText
+                end
+
+                if spamMode == "Chat" then
+                    sendChatMsg(finalBlock)
+                elseif spamMode == "Hidden" then
+                    sendHDAdmin(finalBlock)
+                else
+                    sendChatMsg(finalBlock)
+                    sendHDAdmin(finalBlock)
+                end
+                
+                local delay = tonumber(speedSpamBox.Text) or 1.5
+                task.wait(delay)
+            end
+        end)
+    else
+        btnSendSpam.Text = "بدء الإرسال"
+        btnSendSpam.BackgroundColor3 = C.white
+        btnSendSpam.TextColor3 = C.black
+    end
+end)
+
+-- ============================================================
+-- NAVIGATION LOGIC
+-- ============================================================
+for i, item in ipairs(pageNames) do
+    local glyph, name = item[1], item[2]
+    local b = make("TextButton", {Position = UDim2.fromOffset(0, (i - 1) * 43), Size = UDim2.new(1, 0, 0, 37), BackgroundColor3 = name == selected and Color3.fromRGB(48,49,55) or Color3.fromRGB(19,20,23), BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 5}, navHolder)
+    round(b, 9)
+    local indicator = make("Frame", {Position = UDim2.new(1, -3, 0, 8), Size = UDim2.fromOffset(3, 21), BackgroundColor3 = C.white, BackgroundTransparency = name == selected and 0 or 1, BorderSizePixel = 0, ZIndex = 7}, b)
+    round(indicator, 3)
+    local glyphLabel = label(b, glyph, UDim2.new(1, -39, 0, 0), UDim2.fromOffset(27, 37), 17, name == selected and C.white or C.muted, Enum.Font.GothamBold, Enum.TextXAlignment.Center, false)
+    local nameLabel  = label(b, name,  UDim2.fromOffset(12, 0), UDim2.new(1, -50, 1, 0), 12, name == selected and C.white or C.soft, Enum.Font.GothamSemibold, Enum.TextXAlignment.Right, false)
+
+    navButtons[name] = {button = b, indicator = indicator, glyph = glyphLabel, text = nameLabel}
+    b.MouseButton1Click:Connect(function()
+        selected = name
+        for pageName, page in pairs(pages) do page.Visible = pageName == name end
+        for navName, parts in pairs(navButtons) do
+            local active = navName == name
+            tw(parts.button, 0.16, {BackgroundColor3 = active and Color3.fromRGB(48,49,55) or Color3.fromRGB(19,20,23)})
+            tw(parts.indicator, 0.16, {BackgroundTransparency = active and 0 or 1})
+            tw(parts.glyph, 0.16, {TextColor3 = active and C.white or C.muted})
+            tw(parts.text, 0.16, {TextColor3 = active and C.white or C.soft})
+        end
+    end)
+end
+
+-- ============================================================
+-- WINDOW CONTROLS
+-- ============================================================
+local dragging, dragStart, startPos = false, nil, nil
+top.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = window.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local d = input.Position - dragStart
+        window.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        updateShadow()
+    end
+end)
+
+local launcher = button(gui, "F", UDim2.new(0, 50, 0.5, 0), UDim2.fromOffset(56,56), Color3.fromRGB(30,31,35), C.white, 24)
+launcher.AnchorPoint = Vector2.new(0.5, 0.5); launcher.Visible = false
+round(launcher, 17); outline(launcher, Color3.fromRGB(111,113,121), 1.2, 0.15)
+
+local function hide() window.Visible = false; shadow.Visible = false; launcher.Visible = true; launcher.Size = UDim2.fromOffset(20,20); tw(launcher, 0.18, {Size = UDim2.fromOffset(56, 56)}) end
+local function show() launcher.Visible = false; shadow.Visible = true; window.Visible = true end
+minBtn.MouseButton1Click:Connect(hide)
+closeBtn.MouseButton1Click:Connect(hide)
+launcher.MouseButton1Click:Connect(show)
+
+-- ============================================================
+-- FFF PROTECTION LOGIC
+-- ============================================================
+local shProtectionActive = false
+local shSpamProtectionActive = false
+local shAdminConnection = nil
+local shSpamConnection = nil
+local shSpamDescendantConnection = nil
+local shNvConnection = nil
+local shHiddenUIs = {}
+local shHiddenNightVision = {}
+local shTargetKeywords = {"admin", "cmd", "log", "console", "command"}
+local shHdClient = ReplicatedStorage:FindFirstChild("HDAdminHDClient")
+local shAssets = shHdClient and shHdClient:FindFirstChild("Assets") or nil
+
+local function shHideNightVision(object)
+    if object and object.Name == "NightVision" then
+        if not table.find(shHiddenNightVision, object) then table.insert(shHiddenNightVision, object) end
+        object.Parent = nil
+    end
+end
+
+local function shEnableNVProtection()
+    if not shAssets then return end
+    shNvConnection = shAssets.ChildAdded:Connect(function(object) if shProtectionActive then shHideNightVision(object) end end)
+    for _, object in ipairs(shAssets:GetChildren()) do shHideNightVision(object) end
+end
+
+local function shDisableNVProtection()
+    if shNvConnection then shNvConnection:Disconnect(); shNvConnection = nil end
+    for _, object in ipairs(shHiddenNightVision) do
+        if object and object.Parent == nil and shAssets then object.Parent = shAssets end
+    end
+    shHiddenNightVision = {}
+end
+
+local function shIsTargetUI(guiObj)
+    if not (guiObj:IsA("ScreenGui") or guiObj:IsA("Frame") or guiObj:IsA("BillboardGui")) then return false end
+    local nameLower = guiObj.Name:lower()
+    if nameLower == "guarduiparent" or nameLower == "fff" then return false end
+    for _, keyword in ipairs(shTargetKeywords) do if nameLower:find(keyword) then return true end end
+    return false
+end
+
+local function shPurgeAndHide(container)
+    for _, child in ipairs(container:GetChildren()) do
+        if shIsTargetUI(child) then
+            if not shHiddenUIs[child] then shHiddenUIs[child] = child.Parent; child.Parent = nil end
+        end
+    end
+end
+
+local function shEnableAdminProtection()
+    shProtectionActive = true
+    pcall(function() StarterGui:SetCore("DevConsoleVisible", false) end)
+    shPurgeAndHide(playerGui)
+    pcall(function() shPurgeAndHide(CoreGui) end)
+    shAdminConnection = RunService.Heartbeat:Connect(function()
+        if not shProtectionActive then return end
+        pcall(function() StarterGui:SetCore("DevConsoleVisible", false) end)
+        shPurgeAndHide(playerGui)
+        pcall(function() shPurgeAndHide(CoreGui) end)
+    end)
+    shEnableNVProtection()
+end
+
+local function shDisableAdminProtection()
+    shProtectionActive = false
+    if shAdminConnection then shAdminConnection:Disconnect(); shAdminConnection = nil end
+    for guiObj, parent in pairs(shHiddenUIs) do if guiObj and parent then guiObj.Parent = parent end end
+    table.clear(shHiddenUIs)
+    shDisableNVProtection()
+end
+
+local function shDestroySystemNotifications()
+    if not shSpamProtectionActive then return end
+    for _, descendant in pairs(playerGui:GetDescendants()) do
+        if descendant:IsA("TextLabel") and descendant.Text == "System" then
+            local mainFrame = descendant.Parent
+            if mainFrame and mainFrame:IsA("GuiObject") then pcall(function() mainFrame.Visible = false; mainFrame:Destroy() end) end
+        end
+    end
+end
+
+local function shEnableSpamProtection()
+    shSpamProtectionActive = true
+    shSpamConnection = RunService.Heartbeat:Connect(function() if shSpamProtectionActive then shDestroySystemNotifications() end end)
+    shSpamDescendantConnection = playerGui.DescendantAdded:Connect(function(descendant)
+        if shSpamProtectionActive and descendant:IsA("TextLabel") and descendant.Text == "System" then
+            local mainFrame = descendant.Parent
+            if mainFrame and mainFrame:IsA("GuiObject") then pcall(function() mainFrame.Visible = false; mainFrame:Destroy() end) end
+        end
+    end)
+end
+
+local function shDisableSpamProtection()
+    shSpamProtectionActive = false
+    if shSpamConnection then shSpamConnection:Disconnect(); shSpamConnection = nil end
+    if shSpamDescendantConnection then shSpamDescendantConnection:Disconnect(); shSpamDescendantConnection = nil end
+end
+
+btnSHAdmin.MouseButton1Click:Connect(function()
+    if not shProtectionActive then
+        shEnableAdminProtection()
+        btnSHAdmin.Text = "إيقاف حماية الآدمن (FFF)"
+        btnSHAdmin.BackgroundColor3 = C.white; btnSHAdmin.TextColor3 = C.black
+    else
+        shDisableAdminProtection()
+        btnSHAdmin.Text = "حماية الآدمن (FFF)"
+        btnSHAdmin.BackgroundColor3 = C.panel3; btnSHAdmin.TextColor3 = C.white
+    end
+end)
+
+btnSHSpam.MouseButton1Click:Connect(function()
+    if not shSpamProtectionActive then
+        shEnableSpamProtection()
+        btnSHSpam.Text = "إيقاف إخفاء السبام (FFF)"
+        btnSHSpam.BackgroundColor3 = C.white; btnSHSpam.TextColor3 = C.black
+    else
+        shDisableSpamProtection()
+        btnSHSpam.Text = "إخفاء رسائل السبام (FFF)"
+        btnSHSpam.BackgroundColor3 = C.panel3; btnSHSpam.TextColor3 = C.white
+    end
+end)
+
+-- ============================================================
+-- ANTI-AFK LOGIC
+-- ============================================================
+local AFK = {enabled = false, conns = {}, startCF = nil, startY = nil, moveT = 0, clickT = 0}
+
+local function afkStop()
+    for _, c in ipairs(AFK.conns) do pcall(function() c:Disconnect() end) end
+    AFK.conns = {}
+    AFK.enabled = false
+    btnAntiAFK.Text = "مضاد الخروج (Anti-AFK) - إيقاف"
+    btnAntiAFK.BackgroundColor3 = C.panel3
+end
+
+local function afkStart()
+    afkStop()
+    AFK.enabled = true
+    AFK.moveT = 0
+    AFK.clickT = 0
+    local c = player.Character
+    local r = c and c:FindFirstChild("HumanoidRootPart")
+    if r then AFK.startCF = r.CFrame AFK.startY = r.Position.Y end
+    pcall(function()
+        table.insert(AFK.conns, player.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end))
+    end)
+    table.insert(AFK.conns, RunService.Heartbeat:Connect(function(dt)
+        if not AFK.enabled then return end
+        local cc = player.Character
+        local rr = cc and cc:FindFirstChild("HumanoidRootPart")
+        local hh = cc and cc:FindFirstChildOfClass("Humanoid")
+        if not rr or not hh or not AFK.startCF then return end
+        if math.abs(rr.Position.Y - AFK.startY) > 10 then
+            pcall(function() rr.CFrame = AFK.startCF end)
+        end
+        AFK.moveT = AFK.moveT + dt
+        if AFK.moveT >= 1.2 then
+            AFK.moveT = 0
+            local a = math.random() * math.pi * 2
+            local d = math.random(20, 60)
+            pcall(function() hh:MoveTo(Vector3.new(AFK.startCF.X + math.cos(a)*d, AFK.startY, AFK.startCF.Z + math.sin(a)*d)) end)
+        end
+        AFK.clickT = AFK.clickT + dt
+        if AFK.clickT >= 0.5 then
+            AFK.clickT = 0
+            pcall(function() VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end)
+        end
+    end))
+    btnAntiAFK.Text = "مضاد الخروج (Anti-AFK) - تشغيل"
+    btnAntiAFK.BackgroundColor3 = C.white
+end
+
+btnAntiAFK.MouseButton1Click:Connect(function()
+    if AFK.enabled then afkStop() else afkStart() end
+end)
+
+-- ============================================================
+-- INTEGRATED AUTO CLICKER LOGIC
+-- ============================================================
+local autoClickActive = false
+local autoClickRepeatMode = true
+local autoClickDelay = 0.05
+local autoClickTargets = {}
+local autoClickFrame = nil
+
+local function openAutoClicker()
+    if autoClickFrame then
+        autoClickFrame.Visible = true
+        return
+    end
+
+    autoClickFrame = make("Frame", {
+        Name = "AutoClickerFrame", Size = UDim2.fromOffset(320, 290),
+        Position = UDim2.fromOffset(400, 100), BackgroundColor3 = C.bg,
+        BorderSizePixel = 0, Active = true, ZIndex = 100
+    }, gui)
+    round(autoClickFrame, 12); outline(autoClickFrame, C.line, 1.5, 0.2)
+
+    local acTop = make("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = C.panel2, BorderSizePixel = 0, ZIndex = 101}, autoClickFrame)
+    round(acTop, 12)
+
+    label(acTop, "🖱 أوتو كلكر", UDim2.fromOffset(12, 0), UDim2.new(1, -40, 1, 0), 14, C.white, Enum.Font.GothamBold, Enum.TextXAlignment.Left, true)
+
+    local acClose = button(acTop, "×", UDim2.new(1, -35, 0, 5), UDim2.fromOffset(30, 30), C.panel3, C.soft, 18)
+    acClose.MouseButton1Click:Connect(function() autoClickFrame.Visible = false end)
+
+    local acCreate = button(autoClickFrame, "+ إنشاء نقطة", UDim2.fromOffset(15, 50), UDim2.new(0.5, -20, 0, 35), C.panel2, C.white, 12)
+    local acStart = button(autoClickFrame, "بدء النقر", UDim2.new(0.5, 5, 0, 50), UDim2.new(0.5, -20, 0, 35), C.panel2, C.white, 12)
+    local acClear = button(autoClickFrame, "مسح الكل", UDim2.fromOffset(15, 95), UDim2.new(0.5, -20, 0, 35), C.panel2, C.white, 12)
+    local acRepeat = button(autoClickFrame, "تكرار: مفعل", UDim2.new(0.5, 5, 0, 95), UDim2.new(0.5, -20, 0, 35), C.panel2, C.white, 12)
+    local acSpeed = button(autoClickFrame, "السرعة: عادي", UDim2.fromOffset(15, 140), UDim2.new(0.5, -20, 0, 35), C.panel2, C.white, 12)
+    
+    local acTargetLbl = label(autoClickFrame, "النقاط: 0", UDim2.new(0.5, 5, 0, 140), UDim2.new(0.5, -20, 0, 35), 12, C.soft, Enum.Font.Gotham, Enum.TextXAlignment.Center)
+    
+    local acLog = make("TextLabel", {
+        Size = UDim2.new(1, -30, 0, 80), Position = UDim2.fromOffset(15, 190),
+        BackgroundColor3 = C.black, TextColor3 = C.soft, Font = Enum.Font.Code,
+        TextSize = 10, Text = "> جاهز. اضغط إنشاء نقطة.", TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 101
+    }, autoClickFrame)
+    round(acLog, 6); outline(acLog, C.line, 1, 0.5)
+
+    local acDragging, acDragStart, acStartPos = false, nil, nil
+    acTop.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            acDragging = true; acDragStart = input.Position; acStartPos = autoClickFrame.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then acDragging = false end end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if acDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - acDragStart
+            autoClickFrame.Position = UDim2.new(acStartPos.X.Scale, acStartPos.X.Offset + d.X, acStartPos.Y.Scale, acStartPos.Y.Offset + d.Y)
+        end
+    end)
+
+    acCreate.MouseButton1Click:Connect(function()
+        local marker = make("Frame", {
+            Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(400, 300),
+            BackgroundColor3 = C.black, BackgroundTransparency = 0.5,
+            BorderSizePixel = 2, BorderColor3 = C.white, Active = true, ZIndex = 50
+        }, gui)
+        round(marker, 100)
+
+        local dot = make("Frame", {Size = UDim2.fromOffset(10, 10), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.white, BorderSizePixel = 0, ZIndex = 51}, marker)
+        round(dot, 100)
+
+        local d, p1, p2, cn
+        marker.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                d = true; p1 = input.Position; p2 = marker.Position
+                cn = UserInputService.InputChanged:Connect(function(i)
+                    if d and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+                        local delta = i.Position - p1
+                        marker.Position = UDim2.fromOffset(p2.X.Offset + delta.X, p2.Y.Offset + delta.Y)
+                    end
+                end)
+            end
+        end)
+        marker.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                d = false; if cn then cn:Disconnect() end
+            end
+        end)
+
+        table.insert(autoClickTargets, {marker = marker})
+        acTargetLbl.Text = "النقاط: " .. #autoClickTargets
+    end)
+
+    acStart.MouseButton1Click:Connect(function()
+        if #autoClickTargets == 0 then
+            acLog.Text = "> ❌ لا توجد نقاط! اضغط إنشاء نقطة."
+            return
+        end
+        autoClickActive = not autoClickActive
+        acStart.Text = autoClickActive and "إيقاف" or "بدء النقر"
+        acStart.BackgroundColor3 = autoClickActive and C.white or C.panel2
+        acStart.TextColor3 = autoClickActive and C.black or C.white
+        acLog.Text = autoClickActive and "> ⚡ جاري النقر..." or "> ⏹ تم الإيقاف."
+    end)
+
+    acClear.MouseButton1Click:Connect(function()
+        for _, v in ipairs(autoClickTargets) do pcall(function() v.marker:Destroy() end) end
+        autoClickTargets = {}
+        acTargetLbl.Text = "النقاط: 0"
+        autoClickActive = false
+        acStart.Text = "بدء النقر"
+        acStart.BackgroundColor3 = C.panel2
+        acStart.TextColor3 = C.white
+        acLog.Text = "> 🗑️ تم المسح."
+    end)
+
+    acRepeat.MouseButton1Click:Connect(function()
+        autoClickRepeatMode = not autoClickRepeatMode
+        acRepeat.Text = "تكرار: " .. (autoClickRepeatMode and "مفعل" or "معطل")
+    end)
+
+    local speeds = {{"بطيء", 0.2}, {"عادي", 0.05}, {"سريع", 0.01}}
+    local si = 2
+    acSpeed.MouseButton1Click:Connect(function()
+        si = si % #speeds + 1
+        autoClickDelay = speeds[si][2]
+        acSpeed.Text = "السرعة: " .. speeds[si][1]
+    end)
+
+    task.spawn(function()
+        while gui.Parent do
+            if autoClickActive and #autoClickTargets > 0 then
+                for _, v in ipairs(autoClickTargets) do
+                    if v.marker and v.marker.Parent then
+                        local pos = v.marker.AbsolutePosition + v.marker.AbsoluteSize / 2
+                        pcall(function()
+                            VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+                            task.wait(0.02)
+                            VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+                        end)
+                        task.wait(autoClickDelay)
+                    end
+                end
+                if not autoClickRepeatMode then
+                    autoClickActive = false
+                    acStart.Text = "بدء النقر"
+                    acStart.BackgroundColor3 = C.panel2
+                    acStart.TextColor3 = C.white
+                    acLog.Text = "> ⏹ انتهى (تكرار معطل)."
+                end
+            end
+            task.wait(0.05)
+        end
+    end)
+end
+
+btnAutoClicker.MouseButton1Click:Connect(openAutoClicker)
+
+-- ============================================================
+-- BANG & OTHER FEATURES
+-- ============================================================
+local bangActive = false
+local bangTarget = nil
+local bangConns = {}
+
+local function stopBang()
+    bangActive = false
+    for _, c in pairs(bangConns) do if c then c:Disconnect() end end
+    bangConns = {}
+    if player.Character then
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then for _, v in pairs(hrp:GetChildren()) do if v.Name:match("BANG") then v:Destroy() end end end
+    end
+    statusLabel.Text = "الحالة: تم إيقاف الاستهداف"
+    statusLabel.TextColor3 = C.muted
+    btnBang.Text = "BANG (استهداف)"
+    btnBang.BackgroundColor3 = C.panel2
+    btnBang.TextColor3 = C.white
+end
+
+local function applyBang(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character or not player.Character then return end
+    local myHrp = player.Character:FindFirstChild("HumanoidRootPart")
+    local targetHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHrp or not targetHrp then return end
+    
+    for _, part in pairs(player.Character:GetDescendants()) do
+        if part:IsA("BasePart") then pcall(function() part.CanCollide = false end) end
+    end
+
+    local att0 = Instance.new("Attachment", myHrp); att0.Name = "BANGAttachment"
+    local att1 = Instance.new("Attachment", targetHrp); att1.Name = "BANGTargetAttachment"
+    att1.Position = Vector3.new(0, 0, 1)
+    
+    local alignPos = Instance.new("AlignPosition", myHrp); alignPos.Name = "BANGAlignPosition"
+    alignPos.Attachment0 = att0; alignPos.Attachment1 = att1
+    alignPos.MaxForce = 9000000159744; alignPos.Responsiveness = 500; alignPos.ReactionForceEnabled = false
+    
+    local alignOri = Instance.new("AlignOrientation", myHrp); alignOri.Name = "BANGAlignOrientation"
+    alignOri.Attachment0 = att0; alignOri.Attachment1 = att1
+    alignOri.MaxTorque = 9000000159744; alignOri.Responsiveness = 500; alignOri.ReactionTorqueEnabled = false
+end
+
+btnBang.MouseButton1Click:Connect(function()
+    if bangActive then
+        stopBang()
+    else
+        local target = getPlayer(targetBox.Text)
+        if target then
+            bangActive = true
+            bangTarget = target
+            statusLabel.Text = "الحالة: جاري الاستهداف -> " .. target.Name
+            statusLabel.TextColor3 = C.white
+            btnBang.Text = "إيقاف الاستهداف"
+            btnBang.BackgroundColor3 = C.white
+            btnBang.TextColor3 = C.black
+            
+            task.spawn(function()
+                while bangActive do
+                    local t = getPlayer(bangTarget.Name)
+                    if t and t.Character and player.Character then
+                        local tHrp = t.Character:FindFirstChild("HumanoidRootPart")
+                        local myHrp = player.Character:FindFirstChild("HumanoidRootPart")
+                        if tHrp and myHrp then
+                            if not myHrp:FindFirstChild("BANGAttachment") or not tHrp:FindFirstChild("BANGTargetAttachment") then
+                                pcall(applyBang, t)
+                            end
+                        end
+                    else
+                        stopBang()
+                    end
+                    task.wait(0.5)
+                end
+            end)
+        else
+            statusLabel.Text = "الحالة: اللاعب غير موجود!"; statusLabel.TextColor3 = C.muted
+        end
+    end
+end)
+
+-- FACE BANG
+local faceBangActive = false
+local faceBangConn
+local faceBangTargetName = ""
+
+local function stopFaceBang()
+    faceBangActive = false
+    if faceBangConn then faceBangConn:Disconnect() end
+    statusLabel.Text = "الحالة: تم إيقاف FACE BANG"; statusLabel.TextColor3 = C.muted
+    btnFaceBang.Text = "FACE BANG"
+    btnFaceBang.BackgroundColor3 = C.panel2
+    btnFaceBang.TextColor3 = C.white
+end
+
+btnFaceBang.MouseButton1Click:Connect(function()
+    if faceBangActive then
+        stopFaceBang()
+    else
+        local target = getPlayer(targetBox.Text)
+        if target then
+            stopBang()
+            faceBangActive = true; faceBangTargetName = target.Name
+            statusLabel.Text = "الحالة: FACE BANG -> " .. target.Name
+            statusLabel.TextColor3 = C.white
+            btnFaceBang.Text = "إيقاف FACE BANG"
+            btnFaceBang.BackgroundColor3 = C.white
+            btnFaceBang.TextColor3 = C.black
+
+            faceBangConn = RunService.Heartbeat:Connect(function()
+                if not faceBangActive then return end
+                local t = getPlayer(faceBangTargetName)
+                if not t or not t.Character or not player.Character then return end
+                local myHum = player.Character:FindFirstChildOfClass("Humanoid")
+                if myHum and myHum.Health > 0 then myHum.Sit = true end
+                local tHead = t.Character:FindFirstChild("Head")
+                local myHrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if tHead and myHrp then
+                    local v21 = tick(); local v22 = math.sin(v21 * 8)
+                    myHrp.CFrame = CFrame.new(tHead.Position + tHead.CFrame.LookVector * (1.2 + v22 * 1.25), tHead.Position)
+                end
+            end)
+        else
+            statusLabel.Text = "الحالة: اللاعب غير موجود!"; statusLabel.TextColor3 = C.muted
+        end
+    end
+end)
+
+-- الكلبشة
+local function findCuffTool(container)
+    if not container then return nil end
+    for _, v in ipairs(container:GetChildren()) do
+        if v:IsA("Tool") and (v.Name:lower():find("كلبشه") or v.Name:lower():find("cuff")) then return v end
+        if #v:GetChildren() > 0 then local found = findCuffTool(v); if found then return found end end
+    end
+    return nil
+end
+
+btnCuff.MouseButton1Click:Connect(function()
+    local target = getPlayer(cuffBox.Text)
+    if not target or not target.Character then cuffStatus.Text = "الحالة: اللاعب غير موجود!"; cuffStatus.TextColor3 = C.muted; return end
+    local tool = findCuffTool(player.Character) or findCuffTool(player.Backpack)
+    if not tool then cuffStatus.Text = "الحالة: لا تملك أداة كلبشة!"; cuffStatus.TextColor3 = C.muted; return end
+    local remote = tool:FindFirstChildWhichIsA("RemoteEvent")
+    if not remote then cuffStatus.Text = "الحالة: الأداة لا تحتوي على RemoteEvent!"; cuffStatus.TextColor3 = C.muted; return end
+    local oldParent = tool.Parent; tool.Parent = player.Character
+    task.wait(0.05); pcall(function() remote:FireServer(target.Character) end); task.wait(0.05)
+    pcall(function() if tool and tool.Parent then tool.Parent = oldParent end end)
+    cuffStatus.Text = "الحالة: تم محاولة كلبشة " .. target.Name; cuffStatus.TextColor3 = C.white
+end)
+
+-- حماية التعليق
+local antiSitActive = false
+local antiSitConn
+local function toggleAntiSit()
+    antiSitActive = not antiSitActive
+    if antiSitActive then
+        btnAntiSit.Text = "إيقاف الحماية"; btnAntiSit.BackgroundColor3 = C.white; btnAntiSit.TextColor3 = C.black
+        antiSitConn = RunService.Stepped:Connect(function()
+            if player.Character then
+                local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                    if hum.Sit then hum.Sit = false end
+                end
+            end
+        end)
+    else
+        btnAntiSit.Text = "تشغيل الحماية"; btnAntiSit.BackgroundColor3 = C.panel2; btnAntiSit.TextColor3 = C.white
+        if antiSitConn then antiSitConn:Disconnect() end
+    end
+end
+btnAntiSit.MouseButton1Click:Connect(toggleAntiSit)
+
+-- حماية النسخ
+local copyProtActive = false
+local function sendHDCommand(cmd)
+    local hd = ReplicatedStorage:FindFirstChild("HDAdminHDClient")
+    if hd and hd:FindFirstChild("Signals") and hd.Signals:FindFirstChild("RequestCommandSilent") then
+        pcall(function() hd.Signals.RequestCommandSilent:InvokeServer(cmd) end)
+        return
+    end
+    local events = ReplicatedStorage:FindFirstChild("Events")
+    if events and events:FindFirstChild("SendMessage") then
+        pcall(function() events.SendMessage:FireServer(cmd) end)
+    end
+end
+
+btnCopyProt.MouseButton1Click:Connect(function()
+    copyProtActive = not copyProtActive
+    if copyProtActive then
+        btnCopyProt.Text = "إيقاف حماية النسخ"; btnCopyProt.BackgroundColor3 = C.white; btnCopyProt.TextColor3 = C.black
+        task.spawn(function()
+            while copyProtActive do
+                sendHDCommand(";char me 4yb_v")
+                task.wait(1)
+                sendHDCommand(";char me s56_v")
+                task.wait(1)
+                sendHDCommand(";unemote")
+                task.wait(1)
+            end
+        end)
+    else
+        btnCopyProt.Text = "تشغيل حماية النسخ"; btnCopyProt.BackgroundColor3 = C.panel2; btnCopyProt.TextColor3 = C.white
+    end
+end)
+
+btnCopyRaw.MouseButton1Click:Connect(function()
+    pcall(function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/tbuZu3sF"))()
+    end)
+end)
+
+-- ============================================================
+-- LOOPS & CLEANUP
+-- ============================================================
+task.spawn(function()
+    while gui.Parent do
+        local t = os.date("*t")
+        local h = t.hour % 12
+        if h == 0 then h = 12 end
+        timeNumber.Text = string.format("%d:%02d %s", h, t.min, t.hour >= 12 and "م" or "ص")
+        playerNumber.Text = tostring(#Players:GetPlayers())
+        task.wait(1)
+    end
+end)
+
+local started = os.clock()
+task.spawn(function()
+    while gui.Parent do
+        local elapsed = math.floor(os.clock() - started)
+        uptime.Text = string.format("%02d : %02d : %02d", math.floor(elapsed / 3600), math.floor((elapsed % 3600) / 60), elapsed % 60)
+        task.wait(1)
+    end
+end)
+
+task.spawn(function()
+    while liveDot.Parent do
+        tw(liveDot, 0.9, {BackgroundTransparency = 0.6}); task.wait(1.0)
+        tw(liveDot, 0.9, {BackgroundTransparency = 0}); task.wait(1.0)
+    end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+    for i = #shines, 1, -1 do
+        local shine = shines[i]
+        if not shine.gradient.Parent then
+            table.remove(shines, i)
+        else
+            shine.time = shine.time + dt
+            local total = shine.speed + shine.waitTime
+            if shine.time > total then shine.time = shine.time - total end
+            if shine.time <= shine.speed then
+                shine.gradient.Offset = Vector2.new(-0.7 + (1.4 * (shine.time / shine.speed)), 0)
+            else
+                shine.gradient.Offset = Vector2.new(0.7, 0)
+            end
+        end
+    end
+end)
+
+player.CharacterAdded:Connect(function()
+    stopBang()
+    stopFaceBang()
+end)
+
+print("[FFF] Loaded successfully with Timed Void.")
