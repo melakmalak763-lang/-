@@ -1,0 +1,1318 @@
+local FFF = (function()
+-- ============================================================
+-- FFFV2 — FFF Anti Integration (Arabic)
+-- ============================================================
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local UIS = game:GetService("UserInputService")
+local Rsvc = game:GetService("RunService")
+local HS = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local WS = game:GetService("Workspace")
+local Tween = game:GetService("TweenService")
+local VU = game:GetService("VirtualUser")
+local CoreGui = game:GetService("CoreGui")
+local TextChatService = game:GetService("TextChatService")
+local StarterGui = game:GetService("StarterGui")
+local LP = Players.LocalPlayer
+local PG = LP:WaitForChild("PlayerGui")
+
+local C = {
+    bg = Color3.fromRGB(0,0,0), panel = Color3.fromRGB(10,10,10),
+    panel2 = Color3.fromRGB(20,20,20), line = Color3.fromRGB(40,40,40),
+    text = Color3.fromRGB(255,255,255), dim = Color3.fromRGB(150,150,150),
+    white = Color3.fromRGB(255,255,255), black = Color3.fromRGB(0,0,0),
+    green = Color3.fromRGB(0,200,0), red = Color3.fromRGB(200,0,0),
+    teal = Color3.fromRGB(46,139,87),
+}
+
+local function make(c, p, par)
+    local o = Instance.new(c)
+    for k, v in pairs(p or {}) do o[k] = v end
+    o.Parent = par
+    return o
+end
+local function corner(o, r) make("UICorner", {CornerRadius = UDim.new(0, r or 6)}, o) end
+local function stroke(o, col, th) make("UIStroke", {Color = col or C.line, Thickness = th or 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, o) end
+local function mkBtn(par, txt, pos, sz, bg, tc)
+    local b = make("TextButton", {Position = pos, Size = sz, BackgroundColor3 = bg or C.bg, Text = txt, TextColor3 = tc or C.text, Font = Enum.Font.GothamBold, TextSize = 13, AutoButtonColor = false, ZIndex = 5}, par)
+    corner(b, 6); stroke(b, C.line, 1)
+    return b
+end
+local function mkBox(par, ph, pos, sz)
+    local b = make("TextBox", {Position = pos, Size = sz, BackgroundColor3 = C.bg, Text = "", PlaceholderText = ph or "", PlaceholderColor3 = C.dim, TextColor3 = C.text, Font = Enum.Font.Gotham, TextSize = 13, ClearTextOnFocus = false, ZIndex = 5}, par)
+    corner(b, 6); stroke(b, C.line, 1)
+    return b
+end
+local function label(par, txt, pos, sz, fs, tc, ft, al)
+    return make("TextLabel", {Position = pos, Size = sz, BackgroundTransparency = 1, Text = txt, TextColor3 = tc or C.text, TextSize = fs or 14, Font = ft or Enum.Font.Gotham, TextXAlignment = al or Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 5}, par)
+end
+local function getPlayer(q)
+    if not q or q == "" then return nil end
+    q = q:lower()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and (p.Name:lower() == q or p.DisplayName:lower() == q) then return p end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and (p.Name:lower():sub(1, #q) == q or p.DisplayName:lower():sub(1, #q) == q) then return p end
+    end
+    return nil
+end
+
+-- UI Main
+local gui = make("ScreenGui", {Name = "FFFV2", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, PG)
+local window = make("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(600, 400), BackgroundColor3 = C.bg, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 2}, gui)
+corner(window, 12); stroke(window, C.line, 1.5)
+local uiScale = Instance.new("UIScale", window)
+local function updateScale()
+    local cam = WS.CurrentCamera
+    if not cam then return end
+    local vp = cam.ViewportSize
+    uiScale.Scale = math.min((vp.X - 60) / 600, (vp.Y - 60) / 400, 1)
+end
+updateScale()
+WS.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+
+local header = make("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 3}, window)
+corner(header, 12)
+label(header, "FFFV2", UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0), 20, C.text, Enum.Font.GothamBlack)
+
+local toggleBtn = make("TextButton", {Size = UDim2.fromOffset(50, 50), Position = UDim2.new(0, 20, 0.5, -25), BackgroundColor3 = C.bg, Text = "F", TextColor3 = C.text, Font = Enum.Font.GothamBlack, TextSize = 22, AutoButtonColor = false, ZIndex = 1000}, gui)
+corner(toggleBtn, 100); stroke(toggleBtn, C.text, 2)
+
+local drag, dragStart, dragPos
+header.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        drag = true; dragStart = i.Position; dragPos = window.Position
+    end
+end)
+toggleBtn.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        drag = true; dragStart = i.Position; dragPos = toggleBtn.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - dragStart
+        window.Position = UDim2.new(dragPos.X.Scale, dragPos.X.Offset + d.X, dragPos.Y.Scale, dragPos.Y.Offset + d.Y)
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end
+end)
+
+local isOpen = true
+local function toggleUI()
+    isOpen = not isOpen
+    if isOpen then
+        window.Visible = true
+        window.Size = UDim2.fromOffset(0, 0)
+        window.Position = UDim2.new(0, toggleBtn.AbsolutePosition.X, 0, toggleBtn.AbsolutePosition.Y)
+        Tween:Create(window, TweenInfo.new(0.35, Enum.EasingStyle.Back), {Size = UDim2.fromOffset(600, 400), Position = UDim2.fromScale(0.5, 0.5)}):Play()
+    else
+        local t = Tween:Create(window, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.fromOffset(0, 0), Position = UDim2.new(0, toggleBtn.AbsolutePosition.X, 0, toggleBtn.AbsolutePosition.Y)})
+        t:Play()
+        t.Completed:Connect(function() window.Visible = false end)
+    end
+end
+toggleBtn.MouseButton1Click:Connect(toggleUI)
+UIS.InputBegan:Connect(function(i, g) if not g and i.KeyCode == Enum.KeyCode.B then toggleUI() end end)
+
+local sidebar = make("Frame", {Position = UDim2.fromOffset(10, 50), Size = UDim2.fromOffset(110, 340), BackgroundColor3 = C.panel, BorderSizePixel = 0, ZIndex = 3}, window)
+corner(sidebar, 10); stroke(sidebar, C.line, 1)
+
+local tabList = {
+    {name="main", text="الرئيسية"}, {name="target", text="الاستهداف"},
+    {name="move", text="الحركة"}, {name="cuff", text="كلبشة"},
+    {name="protect", text="الحمايات"}, {name="void", text="فويد"}, {name="spam", text="سبام"}
+}
+local pages, navButtons = {}, {}
+local function showTab(name)
+    for p, f in pairs(pages) do f.Visible = (p == name) end
+    for n, b in pairs(navButtons) do
+        b.BackgroundColor3 = (n == name) and C.white or C.panel2
+        b.TextColor3 = (n == name) and C.black or C.dim
+    end
+end
+for i, tab in ipairs(tabList) do
+    local b = mkBtn(sidebar, tab.text, UDim2.fromOffset(5, 10 + (i-1)*45), UDim2.new(1, -10, 0, 35), C.panel2, C.dim)
+    b.TextSize = 12
+    navButtons[tab.name] = b
+    local page = make("ScrollingFrame", {Position = UDim2.fromOffset(130, 50), Size = UDim2.new(1, -140, 1, -60), BackgroundColor3 = C.panel, BorderSizePixel = 0, ScrollBarThickness = 2, ScrollBarImageColor3 = C.line, Visible = false, ZIndex = 3, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y}, window)
+    corner(page, 10); stroke(page, C.line, 1)
+    pages[tab.name] = page
+    b.MouseButton1Click:Connect(function() showTab(tab.name) end)
+end
+showTab("main")
+
+-- MAIN
+label(pages.main, "فريق التطوير", UDim2.fromOffset(10, 10), UDim2.new(1, -20, 0, 20), 16, C.text, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+local function devCard(name, user, y)
+    local card = make("Frame", {Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, -20, 0, 70), BackgroundColor3 = C.panel2, ZIndex = 4}, pages.main)
+    corner(card, 8)
+    local img = make("ImageLabel", {Position = UDim2.fromOffset(10, 10), Size = UDim2.fromOffset(50, 50), BackgroundColor3 = C.bg, ZIndex = 5}, card)
+    corner(img, 25)
+    task.spawn(function()
+        local ok, id = pcall(function() return Players:GetUserIdFromNameAsync(user) end)
+        if ok and id then img.Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", id) end
+    end)
+    label(card, name, UDim2.fromOffset(70, 12), UDim2.new(1, -70, 0, 20), 15, C.text, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+    label(card, "@" .. user, UDim2.fromOffset(70, 35), UDim2.new(1, -70, 0, 20), 12, C.dim, Enum.Font.Gotham, Enum.TextXAlignment.Left)
+end
+devCard("FFF", "Ffjjskw_5", 40)
+devCard("sukarza_305", "beengeneralbnn", 120)
+
+-- BANG
+do
+    local bR6, bR15 = "148840371", "5918726674"
+    local bActive, bTarget, bTargetName, bMode, bThread, bSavedCF, bSavedColl, bAnimTrack = false, nil, nil, nil, nil, nil, {}, nil
+    local function bClearAtt(hrp) if not hrp then return end for _, v in ipairs(hrp:GetChildren()) do if v.Name:match("^BANG") then pcall(function() v:Destroy() end) end end end
+    local function bStopAnim()
+        if bAnimTrack then pcall(function() bAnimTrack:Stop() end); bAnimTrack = nil end
+        local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then for _, t in pairs(h:GetPlayingAnimationTracks()) do pcall(function() t:Stop() end) end end
+    end
+    local function bMakeAnim()
+        bStopAnim()
+        local c = LP.Character; if not c then return end
+        local h = c:FindFirstChildOfClass("Humanoid"); if not h then return end
+        local an = h:FindFirstChildOfClass("Animator") or Instance.new("Animator", h)
+        local a = Instance.new("Animation")
+        a.AnimationId = "rbxassetid://" .. (h.RigType == Enum.HumanoidRigType.R6 and bR6 or bR15)
+        local t = an:LoadAnimation(a); t.Looped = true
+        pcall(function() t:Play() end)
+        pcall(function() t:AdjustSpeed(h.RigType == Enum.HumanoidRigType.R6 and 4 or 9999999) end)
+        bAnimTrack = t
+    end
+    local function bMakeAtt(hrp1, hrp2)
+        if not hrp1 or not hrp2 then return end
+        bClearAtt(hrp1)
+        local a0 = Instance.new("Attachment"); a0.Name = "BANGAttachment"; a0.Parent = hrp1
+        local a1 = Instance.new("Attachment"); a1.Name = "BANGTargetAttachment"; a1.Parent = hrp2; a1.Position = Vector3.new(0,0,1)
+        local ap = Instance.new("AlignPosition"); ap.Name = "BANGAlignPosition"; ap.Parent = hrp1
+        ap.Attachment0 = a0; ap.Attachment1 = a1; ap.MaxForce = 9e12; ap.Responsiveness = 500
+        local ao = Instance.new("AlignOrientation"); ao.Name = "BANGAlignOrientation"; ao.Parent = hrp1
+        ao.Attachment0 = a0; ao.Attachment1 = a1; ao.MaxTorque = 9e12; ao.Responsiveness = 500
+    end
+    local function stopBang()
+        bActive = false; bMode = nil; bTarget = nil
+        if bThread then pcall(task.cancel, bThread); bThread = nil end
+        bStopAnim()
+        for p, s in pairs(bSavedColl) do if p and p.Parent then pcall(function() p.CanCollide = s end) end end
+        bSavedColl = {}
+        local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            bClearAtt(hrp)
+            if bSavedCF then pcall(function() hrp.CFrame = bSavedCF; hrp.Velocity = Vector3.zero end) end
+        end
+        bSavedCF = nil
+        pcall(function() WS.FallenPartsDestroyHeight = -500 end)
+        local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then pcall(function() h.Sit = false; h.PlatformStand = false; h:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+    end
+    local function startBang(t)
+        if not t then return end
+        stopBang()
+        local mh = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        local th = t.Character and t.Character:FindFirstChild("HumanoidRootPart")
+        if not mh or not th then return end
+        bActive = true; bTarget = t; bTargetName = t.Name; bMode = "body"; bSavedCF = mh.CFrame
+        pcall(function() WS.FallenPartsDestroyHeight = -math.huge end)
+        bSavedColl = {}
+        for _, v in ipairs(LP.Character:GetDescendants()) do
+            if v:IsA("BasePart") then bSavedColl[v] = v.CanCollide; pcall(function() v.CanCollide = false end) end
+        end
+        bMakeAtt(mh, th); bMakeAnim()
+        bThread = task.spawn(function()
+            while bActive and bMode == "body" do
+                local tg = bTarget
+                if not tg or not tg.Parent then
+                    local r = bTargetName and getPlayer(bTargetName)
+                    if r then bTarget = r; tg = r else stopBang(); break end
+                end
+                local c = tg and tg.Character
+                if not c then task.wait(0.12); continue end
+                local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                local trh = c:FindFirstChild("HumanoidRootPart")
+                if hrp and trh then
+                    if not hrp:FindFirstChild("BANGAttachment") then bMakeAtt(hrp, trh) end
+                    if bAnimTrack and not bAnimTrack.IsPlaying then pcall(function() bAnimTrack:Play() end) end
+                end
+                task.wait(0.12)
+            end
+        end)
+    end
+    local function startFaceBang(t, speed)
+        speed = speed or 8
+        if not t then return end
+        stopBang()
+        local mh = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if not mh then return end
+        bActive = true; bTarget = t; bTargetName = t.Name; bMode = "face"; bSavedCF = mh.CFrame
+        pcall(function() WS.FallenPartsDestroyHeight = -math.huge end)
+        bStopAnim()
+        bThread = task.spawn(function()
+            while bActive and bMode == "face" do
+                local tg = bTarget
+                if not tg or not tg.Parent or not tg.Character then
+                    local r = bTargetName and getPlayer(bTargetName)
+                    if r and r.Character then bTarget = r; tg = r else stopBang(); break end
+                end
+                local c = tg.Character
+                local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                if c and hrp and h and h.Health > 0 then
+                    local head = c:FindFirstChild("Head")
+                    if head then pcall(function()
+                        h.Sit = true
+                        local v = math.sin(tick() * speed)
+                        hrp.CFrame = CFrame.new(head.Position + head.CFrame.LookVector * (1.2 + v * 1.25), head.Position)
+                        hrp.Velocity = Vector3.zero
+                    end) end
+                end
+                Rsvc.Heartbeat:Wait()
+            end
+        end)
+    end
+    local tBox = mkBox(pages.target, "اسم اللاعب...", UDim2.fromOffset(10, 40), UDim2.new(1, -20, 0, 35))
+    local bB = mkBtn(pages.target, "BANG", UDim2.fromOffset(10, 85), UDim2.new(0.5, -15, 0, 40), C.bg)
+    local fB = mkBtn(pages.target, "FACE BANG", UDim2.new(0.5, 5, 0, 85), UDim2.new(0.5, -15, 0, 40), C.bg)
+    local ffB = mkBtn(pages.target, "FACE BANG x15", UDim2.fromOffset(10, 130), UDim2.new(1, -20, 0, 40), C.bg)
+    local vB = mkBtn(pages.target, "مشاهدة", UDim2.fromOffset(10, 180), UDim2.new(0.5, -15, 0, 40), C.bg)
+    local tpB = mkBtn(pages.target, "انتقال", UDim2.new(0.5, 5, 0, 180), UDim2.new(0.5, -15, 0, 40), C.bg)
+    local tStatus = label(pages.target, "الحالة: جاهز", UDim2.fromOffset(10, 235), UDim2.new(1, -20, 0, 20), 12, C.dim, Enum.Font.Gotham)
+    tStatus.TextWrapped = true
+    local stopB = mkBtn(pages.target, "إيقاف الكل", UDim2.fromOffset(10, 270), UDim2.new(1, -20, 0, 35), C.bg)
+    local function setStatus(txt, col) tStatus.Text = "الحالة: " .. txt; tStatus.TextColor3 = col or C.text end
+    bB.MouseButton1Click:Connect(function() local p = getPlayer(tBox.Text) if p then startBang(p); setStatus("BANG -> " .. p.Name, C.white) else setStatus("اللاعب غير موجود!", C.dim) end end)
+    fB.MouseButton1Click:Connect(function() local p = getPlayer(tBox.Text) if p then startFaceBang(p, 8); setStatus("FACE BANG -> " .. p.Name, C.white) else setStatus("اللاعب غير موجود!", C.dim) end end)
+    ffB.MouseButton1Click:Connect(function() local p = getPlayer(tBox.Text) if p then startFaceBang(p, 120); setStatus("FACE BANG x15 -> " .. p.Name, C.white) else setStatus("اللاعب غير موجود!", C.dim) end end)
+    vB.MouseButton1Click:Connect(function() local p = getPlayer(tBox.Text) if p and p.Character then local h = p.Character:FindFirstChildOfClass("Humanoid") if h then WS.CurrentCamera.CameraSubject = h; setStatus("مشاهدة " .. p.Name, C.white) end else setStatus("اللاعب غير موجود!", C.dim) end end)
+    tpB.MouseButton1Click:Connect(function() local p = getPlayer(tBox.Text) if p and p.Character then local tr = p.Character:FindFirstChild("HumanoidRootPart") local mr = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") if tr and mr then mr.CFrame = tr.CFrame; setStatus("انتقال إلى " .. p.Name, C.white) end else setStatus("اللاعب غير موجود!", C.dim) end end)
+    stopB.MouseButton1Click:Connect(function() stopBang() local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if h then WS.CurrentCamera.CameraSubject = h end setStatus("جاهز", C.dim) end)
+end
+
+-- MOVE
+do
+    label(pages.move, "الحركة", UDim2.fromOffset(10, 10), UDim2.new(1, -20, 0, 20), 16, C.text, Enum.Font.GothamBold)
+    label(pages.move, "السرعة:", UDim2.fromOffset(10, 40), UDim2.new(0.4, -10, 0, 30), 13, C.text, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+    local spBox = mkBox(pages.move, "16", UDim2.new(0.4, 5, 0, 40), UDim2.new(0.6, -15, 0, 30))
+    spBox.Text = "16"
+    local spApply = mkBtn(pages.move, "تطبيق", UDim2.fromOffset(10, 75), UDim2.new(1, -20, 0, 30), C.panel2)
+    spApply.MouseButton1Click:Connect(function() local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if h then h.WalkSpeed = tonumber(spBox.Text) or 16 end end)
+    label(pages.move, "القفز:", UDim2.fromOffset(10, 115), UDim2.new(0.4, -10, 0, 30), 13, C.text, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+    local jpBox = mkBox(pages.move, "50", UDim2.new(0.4, 5, 0, 115), UDim2.new(0.6, -15, 0, 30))
+    jpBox.Text = "50"
+    local jpApply = mkBtn(pages.move, "تطبيق", UDim2.fromOffset(10, 150), UDim2.new(1, -20, 0, 30), C.panel2)
+    jpApply.MouseButton1Click:Connect(function() local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if h then h.JumpPower = tonumber(jpBox.Text) or 50 end end)
+    local noclipOn = false
+    local noclipBtn = mkBtn(pages.move, "اختراق الجدران: OFF", UDim2.fromOffset(10, 195), UDim2.new(1, -20, 0, 35), C.panel2)
+    noclipBtn.MouseButton1Click:Connect(function()
+        noclipOn = not noclipOn
+        noclipBtn.Text = "اختراق الجدران: " .. (noclipOn and "ON" or "OFF")
+        noclipBtn.BackgroundColor3 = noclipOn and C.white or C.panel2
+        noclipBtn.TextColor3 = noclipOn and C.black or C.text
+    end)
+    Rsvc.Stepped:Connect(function()
+        if not noclipOn or not LP.Character then return end
+        for _, p in ipairs(LP.Character:GetDescendants()) do
+            if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end
+        end
+    end)
+    local flyOn = false
+    local flyBV, flyBG, flyConn
+    local function toggleFly(on)
+        if flyConn then flyConn:Disconnect(); flyConn = nil end
+        if flyBV then flyBV:Destroy(); flyBV = nil end
+        if flyBG then flyBG:Destroy(); flyBG = nil end
+        flyOn = on
+        local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then h.PlatformStand = false end
+        if not on then return end
+        local c = LP.Character
+        local r = c and c:FindFirstChild("HumanoidRootPart")
+        if not (r and h) then return end
+        flyBV = Instance.new("BodyVelocity"); flyBV.MaxForce = Vector3.new(1e9,1e9,1e9); flyBV.Velocity = Vector3.zero; flyBV.Parent = r
+        flyBG = Instance.new("BodyGyro"); flyBG.MaxTorque = Vector3.new(1e9,1e9,1e9); flyBG.P = 10000; flyBG.Parent = r
+        h.PlatformStand = true
+        flyConn = Rsvc.Heartbeat:Connect(function()
+            if not (flyBV and flyBG and LP.Character) then return end
+            local cam = WS.CurrentCamera; flyBG.CFrame = cam.CFrame
+            local d = Vector3.zero
+            if UIS:IsKeyDown(Enum.KeyCode.W) then d += cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then d -= cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then d -= cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then d += cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.Space) then d += Vector3.yAxis end
+            if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then d -= Vector3.yAxis end
+            flyBV.Velocity = d * 60
+        end)
+    end
+    local flyBtn = mkBtn(pages.move, "طيران: OFF", UDim2.fromOffset(10, 240), UDim2.new(1, -20, 0, 35), C.panel2)
+    flyBtn.MouseButton1Click:Connect(function()
+        toggleFly(not flyOn)
+        flyBtn.Text = "طيران: " .. (flyOn and "ON" or "OFF")
+        flyBtn.BackgroundColor3 = flyOn and C.white or C.panel2
+        flyBtn.TextColor3 = flyOn and C.black or C.text
+    end)
+end
+
+-- CUFF
+do
+    label(pages.cuff, "كلبشة", UDim2.fromOffset(0, 10), UDim2.new(1, 0, 0, 22), 16, C.text, Enum.Font.GothamBold)
+    local cuffDelay = 1
+    local function findCuffs()
+        local remotes, seen = {}, {}
+        local kws = {"cuff","arrest","handcuff","detain","restrain"}
+        local function scanTool(c, lbl)
+            if not c then return end
+            for _, t in ipairs(c:GetChildren()) do
+                if t:IsA("Tool") then
+                    for _, d in ipairs(t:GetDescendants()) do
+                        if d:IsA("RemoteEvent") and not seen[d] then
+                            table.insert(remotes, {remote = d, tool = t, src = lbl .. ":" .. t.Name}); seen[d] = true
+                        end
+                    end
+                end
+            end
+        end
+        scanTool(LP.Character, "يد"); scanTool(LP:FindFirstChildOfClass("Backpack"), "حقيبة")
+        for _, d in ipairs(RS:GetDescendants()) do
+            if d:IsA("RemoteEvent") and not seen[d] then
+                local n = tostring(d.Name):lower()
+                for _, k in ipairs(kws) do
+                    if n:find(k,1,true) then table.insert(remotes, {remote=d, src="RS:" .. d.Name}); seen[d]=true; break end
+                end
+            end
+        end
+        return remotes
+    end
+    local function diagnose()
+        local lines = {"== تشخيص =="}
+        local tools = {}
+        local bp = LP:FindFirstChildOfClass("Backpack")
+        if bp then for _, t in ipairs(bp:GetChildren()) do if t:IsA("Tool") then table.insert(tools, t.Name) end end end
+        if LP.Character then for _, t in ipairs(LP.Character:GetChildren()) do if t:IsA("Tool") then table.insert(tools, t.Name) end end end
+        table.insert(lines, #tools > 0 and "أدوات: " .. table.concat(tools, ", ") or "مافي أداة")
+        local remotes = findCuffs()
+        table.insert(lines, "ريموتات: " .. #remotes)
+        for i, e in ipairs(remotes) do if i > 4 then table.insert(lines, "...+" .. (#remotes-4)); break end table.insert(lines, "- " .. e.src) end
+        return table.concat(lines, "\n")
+    end
+    local function fireCuff(entry, target)
+        if not entry.remote or not target.Character then return false end
+        local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
+        if not tHRP then return false end
+        local oldP
+        if entry.tool then oldP = entry.tool.Parent; pcall(function() entry.tool.Parent = LP.Character end); task.wait(0.05) end
+        local patterns = {{tHRP},{"Cuff",tHRP},{tHRP,"Cuff"},{target.Character},{"Cuff",target.Character},{target,tHRP},{"Arrest",tHRP},{"arrest",tHRP}}
+        for _, args in ipairs(patterns) do pcall(function() entry.remote:FireServer(table.unpack(args)) end) end
+        task.wait(0.05)
+        pcall(function() entry.remote:FireServer("Uncuff", tHRP) end)
+        pcall(function() entry.remote:FireServer("Release", tHRP) end)
+        pcall(function() entry.remote:FireServer("Unarrest", tHRP) end)
+        if entry.tool and oldP then pcall(function() entry.tool.Parent = oldP end) end
+        return true
+    end
+    local cBox = mkBox(pages.cuff, "اسم اللاعب...", UDim2.fromOffset(10, 40), UDim2.new(1, -20, 0, 40))
+    local cSt = make("TextLabel", {Size = UDim2.new(1, -20, 0, 100), Position = UDim2.fromOffset(10, 85), BackgroundColor3 = C.panel, Text = "الحالة: جاهز", TextColor3 = C.dim, Font = Enum.Font.Code, TextSize = 11, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 5}, pages.cuff)
+    corner(cSt, 6); stroke(cSt, C.line, 1)
+    make("UIPadding", {PaddingTop = UDim.new(0,6), PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)}, cSt)
+    local dBtn = mkBtn(pages.cuff, "تشخيص", UDim2.fromOffset(10, 190), UDim2.new(1, -20, 0, 30), C.panel2)
+    dBtn.MouseButton1Click:Connect(function() cSt.Text = diagnose(); cSt.TextColor3 = C.white end)
+    local cuffB = mkBtn(pages.cuff, "كلبشة", UDim2.fromOffset(10, 225), UDim2.new(1, -20, 0, 45), C.white, C.black)
+    cuffB.TextSize = 15
+    cuffB.MouseButton1Click:Connect(function()
+        local t = getPlayer(cBox.Text)
+        if not t then cSt.Text = "اللاعب غير موجود"; return end
+        local remotes = findCuffs()
+        if #remotes == 0 then cSt.Text = "مافي ريموت\n" .. diagnose(); return end
+        local count = 0
+        for _, e in ipairs(remotes) do if fireCuff(e, t) then count = count + 1 end end
+        cSt.Text = "كلبشة " .. t.Name .. " (" .. count .. ")\n\n" .. diagnose()
+        cSt.TextColor3 = C.white
+    end)
+    local dlyB = mkBtn(pages.cuff, tostring(cuffDelay), UDim2.fromOffset(10, 278), UDim2.fromOffset(50, 40), C.panel2)
+    local spamB = mkBtn(pages.cuff, "كلبشة تلقيحية", UDim2.fromOffset(65, 278), UDim2.new(1, -75, 0, 40), C.panel2)
+    dlyB.MouseButton1Click:Connect(function()
+        local opts = {0.5, 1, 2, 3, 5}
+        for i, v in ipairs(opts) do if v == cuffDelay then cuffDelay = opts[(i % #opts) + 1]; break end end
+        dlyB.Text = tostring(cuffDelay)
+    end)
+    spamB.MouseButton1Click:Connect(function()
+        local remotes = findCuffs()
+        if #remotes == 0 then cSt.Text = "مافي ريموت"; return end
+        local count = 0
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and p.Character then
+                for _, e in ipairs(remotes) do if fireCuff(e, p) then count = count + 1; break end end
+                task.wait(cuffDelay)
+            end
+        end
+        cSt.Text = "تلقيح " .. count .. " لاعب"
+        cSt.TextColor3 = C.white
+    end)
+    local tpCuffOn = false
+    local tpCuffThread = nil
+    local tpCuffBtn = mkBtn(pages.cuff, "كلبشة تو (أوتو): OFF", UDim2.fromOffset(10, 325), UDim2.new(1, -20, 0, 45), C.panel2)
+    tpCuffBtn.TextSize = 13
+    local function startTpCuffLoop()
+        local targetName = cBox.Text
+        if targetName == "" then cSt.Text = "اكتب اسم اللاعب أولاً"; return end
+        if #findCuffs() == 0 then cSt.Text = "مافي ريموت كلبشة"; return end
+        tpCuffOn = true
+        tpCuffThread = task.spawn(function()
+            while tpCuffOn do
+                local t = getPlayer(targetName)
+                if not t or not t.Character then cSt.Text = "اللاعب خرج أو مات - إيقاف"; break end
+                local remotes = findCuffs()
+                if #remotes == 0 then cSt.Text = "الريموت اختفى - إيقاف"; break end
+                local myHRP = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                local tHRP = t.Character:FindFirstChild("HumanoidRootPart")
+                if myHRP and tHRP then
+                    local saved = myHRP.CFrame
+                    pcall(function() myHRP.CFrame = tHRP.CFrame + Vector3.new(0,0,2) end)
+                    task.wait(0.05)
+                    for _, e in ipairs(remotes) do fireCuff(e, t) end
+                    task.wait(0.05)
+                    pcall(function() myHRP.CFrame = saved end)
+                    cSt.Text = "كلبشة تو أوتو: " .. t.Name
+                    cSt.TextColor3 = C.white
+                end
+                task.wait(cuffDelay)
+            end
+            tpCuffOn = false
+            tpCuffBtn.Text = "كلبشة تو (أوتو): OFF"
+            tpCuffBtn.BackgroundColor3 = C.panel2
+            tpCuffBtn.TextColor3 = C.text
+        end)
+    end
+    local function stopTpCuffLoop() tpCuffOn = false; if tpCuffThread then pcall(task.cancel, tpCuffThread); tpCuffThread = nil end end
+    tpCuffBtn.MouseButton1Click:Connect(function()
+        if tpCuffOn then
+            stopTpCuffLoop()
+            tpCuffBtn.Text = "كلبشة تو (أوتو): OFF"
+            tpCuffBtn.BackgroundColor3 = C.panel2
+            tpCuffBtn.TextColor3 = C.text
+        else
+            startTpCuffLoop()
+            tpCuffBtn.Text = "كلبشة تو (أوتو): ON"
+            tpCuffBtn.BackgroundColor3 = C.white
+            tpCuffBtn.TextColor3 = C.black
+        end
+    end)
+end
+
+-- PROTECT (بدون حماية v2 — جميع الحمايات بالعربي)
+do
+    label(pages.protect, "الحمايات", UDim2.fromOffset(10, 10), UDim2.new(1, -20, 0, 20), 16, C.text, Enum.Font.GothamBold)
+
+    local function sendCmd(cmd)
+        local hd = RS:FindFirstChild("HDAdminHDClient")
+        if hd then
+            local sig = hd:FindFirstChild("Signals")
+            if sig then
+                local rcs = sig:FindFirstChild("RequestCommandSilent")
+                if rcs then
+                    if rcs:IsA("RemoteFunction") then pcall(function() rcs:InvokeServer(cmd) end)
+                    else pcall(function() rcs:FireServer(cmd) end) end
+                    return
+                end
+            end
+        end
+        local ev = RS:FindFirstChild("Events")
+        if ev and ev:FindFirstChild("SendMessage") then pcall(function() ev.SendMessage:FireServer(cmd) end); return end
+        local ch = RS:FindFirstChild("DefaultChatSystemChatEvents")
+        if ch then
+            local s = ch:FindFirstChild("SayMessageRequest")
+            if s then pcall(function() s:FireServer(cmd, "All") end) end
+        end
+    end
+
+    local function getNearPlayers()
+        local list = {}
+        local c = LP.Character; if not c then return list end
+        local hrp = c:FindFirstChild("HumanoidRootPart"); if not hrp then return list end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local phrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if phrp and (hrp.Position - phrp.Position).Magnitude < 50 then table.insert(list, p) end
+            end
+        end
+        return list
+    end
+
+    -- مضاد AFK (بدون تغيير)
+    local afkOn = false
+    local afkIdle, afkLoop, afkStartCF, afkMT, afkJT, afkCT, afkNJ = nil, nil, nil, 0, 0, 0, 2
+    local function setAntiAfk(on)
+        afkOn = on
+        if afkIdle then afkIdle:Disconnect(); afkIdle = nil end
+        if afkLoop then afkLoop:Disconnect(); afkLoop = nil end
+        if not on then return end
+        afkMT, afkJT, afkCT, afkNJ = 0, 0, 0, math.random(2,4)
+        local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if r then afkStartCF = r.CFrame end
+        afkIdle = LP.Idled:Connect(function() pcall(function() VU:CaptureController(); VU:ClickButton2(Vector2.new()) end) end)
+        afkLoop = Rsvc.Heartbeat:Connect(function(dt)
+            if not afkOn then return end
+            local c = LP.Character
+            local h = c and c:FindFirstChildOfClass("Humanoid")
+            local r2 = c and c:FindFirstChild("HumanoidRootPart")
+            if not (h and r2) or h.Health <= 0 then return end
+            if afkStartCF then
+                local d = (r2.Position - afkStartCF.Position).Magnitude
+                if d > 30 then pcall(function() r2.CFrame = afkStartCF; r2.AssemblyLinearVelocity = Vector3.zero end) end
+            end
+            afkMT = afkMT + dt
+            if afkMT >= 1.2 then afkMT = 0 local a = math.random()*math.pi*2 local d = math.random(20,50) local b = afkStartCF and afkStartCF.Position or r2.Position pcall(function() h:MoveTo(Vector3.new(b.X+math.cos(a)*d, b.Y, b.Z+math.sin(a)*d)) end) end
+            afkJT = afkJT + dt
+            if afkJT >= afkNJ then afkJT = 0 afkNJ = math.random(2,4) pcall(function() h:ChangeState(Enum.HumanoidStateType.Jumping) end) end
+            afkCT = afkCT + dt
+            if afkCT >= 5 then afkCT = 0 pcall(function() VU:CaptureController(); VU:ClickButton2(Vector2.new()) end) end
+        end)
+    end
+    local afkBtn = mkBtn(pages.protect, "مضاد AFK: OFF", UDim2.fromOffset(10, 40), UDim2.new(1, -20, 0, 35), C.panel2)
+    afkBtn.MouseButton1Click:Connect(function()
+        setAntiAfk(not afkOn)
+        afkBtn.Text = "مضاد AFK: " .. (afkOn and "ON" or "OFF")
+        afkBtn.BackgroundColor3 = afkOn and C.white or C.panel2
+        afkBtn.TextColor3 = afkOn and C.black or C.text
+    end)
+
+    -- حماية نسخ HD
+    local copyOn = false
+    local copyBtn = mkBtn(pages.protect, "حماية نسخ HD: OFF", UDim2.fromOffset(10, 85), UDim2.new(1, -20, 0, 35), C.panel2)
+    copyBtn.MouseButton1Click:Connect(function()
+        if copyOn then
+            copyOn = false; copyBtn.Text = "حماية نسخ HD: OFF"; copyBtn.BackgroundColor3 = C.panel2; copyBtn.TextColor3 = C.text
+        else
+            copyOn = true; copyBtn.Text = "حماية نسخ HD: ON"; copyBtn.BackgroundColor3 = C.white; copyBtn.TextColor3 = C.black
+            task.spawn(function()
+                while copyOn do
+                    sendCmd(";char me 4yb_v"); task.wait(1)
+                    if not copyOn then break end
+                    sendCmd(";char me s56_v"); task.wait(1)
+                    if not copyOn then break end
+                    sendCmd(";unemote"); task.wait(1)
+                end
+            end)
+        end
+    end)
+
+    -- مضاد التعليق
+    local antiSitConn
+    local antiSitOn = false
+    local antiSitBtn = mkBtn(pages.protect, "مضاد التعليق: OFF", UDim2.fromOffset(10, 130), UDim2.new(1, -20, 0, 35), C.panel2)
+    antiSitBtn.MouseButton1Click:Connect(function()
+        antiSitOn = not antiSitOn
+        if antiSitConn then antiSitConn:Disconnect(); antiSitConn = nil end
+        if antiSitOn then
+            antiSitConn = Rsvc.Stepped:Connect(function()
+                local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                if h then if h.Sit then h.Sit = false end h:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end
+            end)
+        end
+        antiSitBtn.Text = "مضاد التعليق: " .. (antiSitOn and "ON" or "OFF")
+        antiSitBtn.BackgroundColor3 = antiSitOn and C.white or C.panel2
+        antiSitBtn.TextColor3 = antiSitOn and C.black or C.text
+    end)
+
+    -- مضاد الكلبشة
+    local antiCuffConn, antiCuffSafe, antiCuffResetting
+    local antiCuffOn = false
+    local function isCuffed()
+        local c = LP.Character; if not c then return false end
+        local h = c:FindFirstChildOfClass("Humanoid"); if not h then return false end
+        if h.PlatformStand then return true end
+        return false
+    end
+    local antiCuffBtn = mkBtn(pages.protect, "مضاد الكلبشة: OFF", UDim2.fromOffset(10, 175), UDim2.new(1, -20, 0, 35), C.panel2)
+    antiCuffBtn.MouseButton1Click:Connect(function()
+        antiCuffOn = not antiCuffOn
+        if antiCuffConn then antiCuffConn:Disconnect(); antiCuffConn = nil end
+        if antiCuffOn then
+            local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if root then antiCuffSafe = root.CFrame end
+            antiCuffConn = Rsvc.Heartbeat:Connect(function()
+                if antiCuffResetting then return end
+                local c = LP.Character
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local r = c and c:FindFirstChild("HumanoidRootPart")
+                if c and h and r and h.Health > 0 then
+                    local st = h:GetState()
+                    if st == Enum.HumanoidStateType.Running or st == Enum.HumanoidStateType.Landed or st == Enum.HumanoidStateType.Jumping or st == Enum.HumanoidStateType.Freefall then antiCuffSafe = r.CFrame end
+                end
+                if isCuffed() then
+                    antiCuffResetting = true
+                    local saved = antiCuffSafe
+                    if h then pcall(function() h.Health = 0 end) end
+                    task.spawn(function()
+                        local nc
+                        local cc = LP.CharacterAdded:Connect(function(ch) nc = ch end)
+                        local dl = os.clock() + 8
+                        while not nc and os.clock() < dl do task.wait(0.1) end
+                        pcall(function() cc:Disconnect() end)
+                        if nc and saved then
+                            local r2 = nc:WaitForChild("HumanoidRootPart", 5)
+                            if r2 then task.wait(0.2); pcall(function() r2.CFrame = saved end) end
+                        end
+                        task.wait(1); antiCuffResetting = false
+                    end)
+                end
+            end)
+        end
+        antiCuffBtn.Text = "مضاد الكلبشة: " .. (antiCuffOn and "ON" or "OFF")
+        antiCuffBtn.BackgroundColor3 = antiCuffOn and C.white or C.panel2
+        antiCuffBtn.TextColor3 = antiCuffOn and C.black or C.text
+    end)
+
+    -- مضاد Void
+    local voidAntiConn
+    local voidAntiOn = false
+    local voidAntiBtn = mkBtn(pages.protect, "مضاد Void: OFF", UDim2.fromOffset(10, 220), UDim2.new(1, -20, 0, 35), C.panel2)
+    voidAntiBtn.MouseButton1Click:Connect(function()
+        voidAntiOn = not voidAntiOn
+        if voidAntiConn then voidAntiConn:Disconnect(); voidAntiConn = nil end
+        if voidAntiOn then
+            voidAntiConn = Rsvc.Heartbeat:Connect(function()
+                local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                if r and r.Position.Y < -50 then pcall(function() r.CFrame = CFrame.new(0,50,0) end) end
+            end)
+        end
+        voidAntiBtn.Text = "مضاد Void: " .. (voidAntiOn and "ON" or "OFF")
+        voidAntiBtn.BackgroundColor3 = voidAntiOn and C.white or C.panel2
+        voidAntiBtn.TextColor3 = voidAntiOn and C.black or C.text
+    end)
+
+    -- FFF Anti Suite (بالعربي)
+    label(pages.protect, "حمايات FFF", UDim2.fromOffset(10, 265), UDim2.new(1, -20, 0, 20), 14, C.text, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+
+    local st = {
+        nvActive = false, warpActive = false, antiLagActive = false,
+        antiSysActive = false, antiChatActive = false, antiPlayerActive = false,
+        antiPlayerConnections = {}, executeCmd = nil, hookInstalled = false,
+        antiLagStore = {parts={}, decals={}, effects={}, postEffects={}, atmospheres={}, clouds={}, workspaceClouds={}, skies={}, applied=false},
+    }
+
+    local function getECC()
+        local hd = RS:FindFirstChild("HDAdminHDClient")
+        local sig = hd and hd:FindFirstChild("Signals")
+        local ecc = sig and sig:FindFirstChild("ExecuteClientCommand")
+        if not ecc then pcall(function() ecc = RS:FindFirstChild("ExecuteClientCommand", true) end) end
+        if ecc then st.executeCmd = ecc; return ecc end
+        return nil
+    end
+    local function blockExec(block)
+        local ecc = getECC()
+        if not ecc or type(getconnections) ~= "function" then return false end
+        return (pcall(function()
+            for _, c in ipairs(getconnections(ecc.OnClientEvent)) do
+                pcall(function()
+                    if block then if c.Disable then c:Disable() end
+                    else if c.Enable then c:Enable() end end
+                end)
+            end
+        end))
+    end
+    local function installHook()
+        if st.hookInstalled or not st.executeCmd then return end
+        if type(firesignal) ~= "function" or type(hookfunction) ~= "function" then return end
+        local old = firesignal
+        local ok = pcall(function()
+            hookfunction(firesignal, function(sig, ...)
+                if sig == st.executeCmd then
+                    local args = {...}
+                    local s = {}
+                    for i = 1, #args do if type(args[i]) == "string" then s[args[i]:lower()] = true end end
+                    if st.nvActive and (s.nightvision or s.nv) then return nil end
+                    if st.warpActive and s.warp then return nil end
+                end
+                return old(sig, ...)
+            end)
+        end)
+        if ok then st.hookInstalled = true end
+    end
+
+    -- AntiChat helpers
+    local chatKws = {"chat","chatframe","chatwindow","chatbox","chatbar","chatcontainer","chatgui","bubblechat","bubble","messaging","textchat"}
+    local function isChatName(n)
+        local l = tostring(n or ""):lower()
+        for _, k in ipairs(chatKws) do if l == k or l:find(k,1,true) then return true end end
+        return false
+    end
+    local function isOurGui(inst)
+        local p = inst
+        for i = 1, 8 do
+            if not p then break end
+            local l = tostring(p.Name or ""):lower()
+            if l == "fffv2" or l == "fffv2_protectioncenter" or l == "cmdbar" then return true end
+            p = p.Parent
+        end
+        return false
+    end
+    local function setAntiChat(on)
+        st.antiChatActive = on
+        pcall(function() TextChatService.ChatWindowConfiguration.Enabled = not on end)
+        pcall(function() TextChatService.BubbleChatConfiguration.Enabled = not on end)
+        pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, not on) end)
+        for _, root in ipairs({PG, CoreGui}) do
+            if root then
+                for _, d in ipairs(root:GetDescendants()) do
+                    if not isOurGui(d) and isChatName(d.Name) then
+                        pcall(function()
+                            if d:IsA("ScreenGui") or d:IsA("BillboardGui") then d.Enabled = not on
+                            elseif d:IsA("GuiObject") then d.Visible = not on end
+                        end)
+                    end
+                end
+            end
+        end
+    end
+
+    -- AntiPlayer
+    local function applyHide(char, hide)
+        if not char then return end
+        for _, d in ipairs(char:GetDescendants()) do
+            pcall(function()
+                if d:IsA("BasePart") then d.LocalTransparencyModifier = hide and 1 or 0; d.CastShadow = not hide
+                elseif d:IsA("Decal") or d:IsA("Texture") then d.Transparency = hide and 1 or 0
+                elseif d:IsA("BillboardGui") or d:IsA("SurfaceGui") then d.Enabled = not hide
+                elseif d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Smoke") or d:IsA("Fire") or d:IsA("Sparkles") or d:IsA("Highlight") then d.Enabled = not hide end
+            end)
+        end
+        pcall(function()
+            local h = char:FindFirstChildOfClass("Humanoid")
+            if h then h.DisplayDistanceType = hide and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Viewer end
+        end)
+    end
+    local function hookHide(p)
+        if p == LP then return end
+        if p.Character then
+            task.spawn(function()
+                for i = 1, 8 do
+                    if not st.antiPlayerActive or not p.Character then break end
+                    applyHide(p.Character, true); task.wait(0.15)
+                end
+            end)
+        end
+        table.insert(st.antiPlayerConnections, p.CharacterAdded:Connect(function(ch)
+            task.spawn(function()
+                for i = 1, 8 do
+                    if not st.antiPlayerActive or not ch.Parent then break end
+                    applyHide(ch, true); task.wait(0.15)
+                end
+            end)
+        end))
+    end
+    local function setAntiPlayer(on)
+        st.antiPlayerActive = on
+        for _, c in ipairs(st.antiPlayerConnections) do pcall(function() c:Disconnect() end) end
+        st.antiPlayerConnections = {}
+        if on then
+            for _, p in ipairs(Players:GetPlayers()) do if p ~= LP then hookHide(p) end end
+            table.insert(st.antiPlayerConnections, Players.PlayerAdded:Connect(function(p) if st.antiPlayerActive and p ~= LP then hookHide(p) end end))
+        else
+            for _, p in ipairs(Players:GetPlayers()) do if p ~= LP and p.Character then applyHide(p.Character, false) end end
+        end
+    end
+
+    -- AntiSys
+    local sysConn
+    local function setAntiSys(on)
+        st.antiSysActive = on
+        if sysConn then sysConn:Disconnect(); sysConn = nil end
+        if on then
+            local function isBad(d)
+                if string.lower(d.Name):find("system", 1, true) then return true end
+                if (d:IsA("TextLabel") or d:IsA("TextButton")) and string.lower(d.Text or ""):find("system", 1, true) then return true end
+                return false
+            end
+            local function clean(root)
+                if not root then return end
+                for _, d in ipairs(root:GetDescendants()) do
+                    if isOurGui(d) then continue end
+                    if isBad(d) then
+                        local p = d.Parent
+                        pcall(function() if p and p ~= PG then p:Destroy() else d:Destroy() end end)
+                    end
+                end
+            end
+            clean(PG)
+            sysConn = PG.DescendantAdded:Connect(function(d)
+                if st.antiSysActive and not isOurGui(d) then
+                    task.defer(function()
+                        if isBad(d) then local p = d.Parent pcall(function() if p and p ~= PG then p:Destroy() else d:Destroy() end end) end
+                    end)
+                end
+            end)
+        end
+    end
+
+    -- AntiLag
+    local als = st.antiLagStore
+    local floorFollow, floorConn, fakeFloor
+    local function restoreAntiLag()
+        for p, v in pairs(als.parts) do if p and p.Parent then pcall(function() p.LocalTransparencyModifier = v.t; p.CanCollide = v.c; p.CanTouch = v.to; p.CanQuery = v.q; p.CastShadow = v.cs end) end end
+        for d, v in pairs(als.decals) do if d and d.Parent then pcall(function() d.Transparency = v end) end end
+        for e, v in pairs(als.effects) do if e and e.Parent then pcall(function() e.Enabled = v end) end end
+        for e, v in pairs(als.postEffects) do if e and e.Parent then pcall(function() e.Enabled = v end) end end
+        for a, v in pairs(als.atmospheres) do if a and a.Parent then pcall(function() a.Density = v end) end end
+        for c, v in pairs(als.clouds) do if c and c.Parent then pcall(function() c.Enabled = v end) end end
+        for c, v in pairs(als.workspaceClouds) do if c and c.Parent then pcall(function() c.Enabled = v end) end end
+        for sky, par in pairs(als.skies) do pcall(function() sky.Parent = par end) end
+        if floorConn then floorConn:Disconnect(); floorConn = nil end
+        if fakeFloor then fakeFloor:Destroy(); fakeFloor = nil end
+        if als.globalShadows ~= nil then pcall(function() Lighting.GlobalShadows = als.globalShadows end) end
+        if als.qualityLevel ~= nil then pcall(function() settings().Rendering.QualityLevel = als.qualityLevel end) end
+        als.parts, als.decals, als.effects, als.postEffects, als.atmospheres, als.clouds, als.workspaceClouds, als.skies = {},{},{},{},{},{},{},{}
+        als.globalShadows, als.qualityLevel = nil, nil
+        als.applied = false
+    end
+    local function applyAntiLag()
+        if als.applied then return end
+        als.applied = true
+        local char = LP.Character
+        pcall(function()
+            for _, d in ipairs(WS:GetDescendants()) do
+                if not (char and d:IsDescendantOf(char)) then
+                    if d:IsA("BasePart") then
+                        als.parts[d] = {t=d.LocalTransparencyModifier,c=d.CanCollide,to=d.CanTouch,q=d.CanQuery,cs=d.CastShadow}
+                        d.LocalTransparencyModifier = 1; d.CanCollide = false; d.CanTouch = false; d.CanQuery = false
+                        pcall(function() d.CastShadow = false end)
+                    elseif d:IsA("Decal") or d:IsA("Texture") then als.decals[d]=d.Transparency; d.Transparency=1
+                    elseif d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Smoke") or d:IsA("Fire") or d:IsA("Sparkles") then als.effects[d]=d.Enabled; d.Enabled=false
+                    elseif d:IsA("Clouds") then als.workspaceClouds[d]=d.Enabled; d.Enabled=false end
+                end
+            end
+        end)
+        pcall(function()
+            for _, e in ipairs(Lighting:GetChildren()) do
+                if e:IsA("PostEffect") then als.postEffects[e]=e.Enabled; e.Enabled=false
+                elseif e:IsA("Atmosphere") then als.atmospheres[e]=e.Density; e.Density=0
+                elseif e:IsA("Clouds") then als.clouds[e]=e.Enabled; e.Enabled=false
+                elseif e:IsA("Sky") then als.skies[e]=e.Parent; e.Parent=nil end
+            end
+            als.globalShadows = Lighting.GlobalShadows
+            Lighting.GlobalShadows = false
+        end)
+        pcall(function() als.qualityLevel = settings().Rendering.QualityLevel; settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+        pcall(function()
+            fakeFloor = Instance.new("Part")
+            fakeFloor.Name = "FFFV2_AntiLagFloor"; fakeFloor.Anchored = true; fakeFloor.CanCollide = true
+            fakeFloor.CanTouch = false; fakeFloor.CanQuery = true; fakeFloor.Size = Vector3.new(80,1,80)
+            fakeFloor.Material = Enum.Material.SmoothPlastic; fakeFloor.Transparency = 0
+            fakeFloor.Parent = WS
+            local function follow()
+                if not floorFollow or not fakeFloor.Parent then return end
+                local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                if r then fakeFloor.CFrame = CFrame.new(r.Position.X, r.Position.Y - 3.2, r.Position.Z) end
+            end
+            follow()
+            floorConn = Rsvc.Heartbeat:Connect(follow)
+        end)
+    end
+
+    local function makeToggleBtn(name, y, onEnable, onDisable)
+        local b = mkBtn(pages.protect, name .. ": OFF", UDim2.fromOffset(10, y), UDim2.new(1, -20, 0, 35), C.panel2)
+        local s = false
+        b.MouseButton1Click:Connect(function()
+            s = not s
+            b.Text = name .. ": " .. (s and "ON" or "OFF")
+            b.BackgroundColor3 = s and C.teal or C.panel2
+            b.TextColor3 = s and C.white or C.text
+            if s then pcall(onEnable) else pcall(onDisable) end
+        end)
+        return b
+    end
+
+    makeToggleBtn("مضاد الرؤية الليلية", 290, function()
+        st.nvActive = true; if st.executeCmd then blockExec(true) end
+        task.spawn(function() pcall(function() sendCmd("!unnv") end) end)
+    end, function() st.nvActive = false end)
+
+    makeToggleBtn("مضاد الوارب", 330, function()
+        st.warpActive = true; if st.executeCmd then blockExec(true) end
+        task.spawn(function() pcall(function() sendCmd("!unwarp") end) end)
+    end, function() st.warpActive = false end)
+
+    makeToggleBtn("مضاد اللاق", 370, function()
+        st.antiLagActive = true; floorFollow = true; task.spawn(applyAntiLag)
+    end, function() st.antiLagActive = false; floorFollow = false; restoreAntiLag() end)
+
+    makeToggleBtn("مضاد النظام", 410, function() setAntiSys(true) end, function() setAntiSys(false) end)
+    makeToggleBtn("مضاد الشات", 450, function() setAntiChat(true) end, function() setAntiChat(false) end)
+    makeToggleBtn("مضاد اللاعبين", 490, function() setAntiPlayer(true) end, function() setAntiPlayer(false) end)
+
+    -- أزرار FFF Anti (بالعربي)
+    label(pages.protect, "أزرار FFF", UDim2.fromOffset(10, 535), UDim2.new(1, -20, 0, 20), 14, C.text, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+
+    local savedOrig = {}
+    local function antiBtn(name, labelText, x, y, w, loopFn, stopFn)
+        local b = mkBtn(pages.protect, labelText, UDim2.new(x, 0, 0, y), UDim2.new(w, 0, 0, 40), C.green, C.white)
+        b.TextSize = 11
+        local active = false
+        local thread
+        b.MouseButton1Click:Connect(function()
+            active = not active
+            if active then
+                b.Text = "إيقاف"; b.BackgroundColor3 = C.red
+                local c = LP.Character
+                savedOrig[name] = c and c:FindFirstChild("HumanoidRootPart") and c.HumanoidRootPart.CFrame or nil
+                thread = task.spawn(function()
+                    while active do
+                        pcall(loopFn, function() return active end, savedOrig[name])
+                        task.wait(0.03)
+                    end
+                end)
+            else
+                b.Text = labelText; b.BackgroundColor3 = C.green
+                if thread then pcall(task.cancel, thread); thread = nil end
+                if stopFn then pcall(stopFn, savedOrig[name]) end
+            end
+        end)
+        return b
+    end
+
+    antiBtn("Wifi", "واي فاي", 0.02, 565, 0.47, function(isOn)
+        local positions = {CFrame.new(2147483648,944401,-2),CFrame.new(1134,-271,408),CFrame.new(1801,21,624),CFrame.new(-5000,-5000,-5000),CFrame.new(0,10000,0)}
+        local idx = 1
+        while isOn() do
+            local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if r then r.CFrame = positions[idx]; idx = idx % #positions + 1 end
+            for _, p in ipairs(getNearPlayers()) do pcall(function() sendCmd("!re " .. p.Name) end); task.wait(0.05) end
+            task.wait(0.1)
+        end
+    end, function(orig) if orig then local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if r then pcall(function() r.CFrame = orig end) end end end)
+
+    antiBtn("Void", "فويد", 0.51, 565, 0.47, function(isOn)
+        while isOn() do
+            local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if r then r.CFrame = CFrame.new(2147483648,944401,-2) end
+            task.wait(0.1)
+        end
+    end, function(orig) if orig then local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if r then pcall(function() r.CFrame = orig end) end end end)
+
+    antiBtn("Kill", "كيل", 0.51, 613, 0.47, function(isOn)
+        while isOn() do
+            local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if r then r.CFrame = CFrame.new(1134,-271,408) end
+            task.wait(0.1)
+        end
+    end, function(orig) if orig then local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if r then pcall(function() r.CFrame = orig end) end end end)
+
+    antiBtn("TpVoid", "تي بي فويد", 0.02, 613, 0.47, function(isOn, orig)
+        while isOn() do
+            local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if r and orig then r.CFrame = CFrame.new(2147483648,944401,-2); task.wait(0.08); if isOn() and r.Parent then r.CFrame = orig end end
+            task.wait(1)
+        end
+    end, function(orig) if orig then local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if r then pcall(function() r.CFrame = orig end) end end end)
+
+    antiBtn("antiVoid", "مضاد الفويد", 0.02, 661, 0.47, function(isOn)
+        local safe = CFrame.new(1801,21,624)
+        while isOn() do
+            local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if r then local p = r.Position if p.Y < -50 or p.Y > 1000 or p.Magnitude > 5000 then r.CFrame = safe end end
+            task.wait(0.1)
+        end
+    end, nil)
+
+    antiBtn("antiBang", "مضاد البانق", 0.51, 661, 0.47, function(isOn, orig)
+        while isOn() do
+            local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if r then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LP and p.Character then
+                        local pr = p.Character:FindFirstChild("HumanoidRootPart")
+                        if pr and (r.Position - pr.Position).Magnitude < 6 then
+                            local h = p.Character:FindFirstChildOfClass("Humanoid")
+                            local an = h and h:FindFirstChildOfClass("Animator")
+                            local isBang = false
+                            if an then for _, t in ipairs(an:GetPlayingAnimationTracks()) do
+                                if t.Animation and tostring(t.Animation.AnimationId):find("5918726674",1,true) then isBang = true break end
+                            end end
+                            if isBang then
+                                local save = orig or r.CFrame
+                                for _, a in ipairs(r:GetChildren()) do if a:IsA("Attachment") or a:IsA("AlignPosition") or a:IsA("AlignOrientation") then pcall(function() a:Destroy() end) end end
+                                r.CFrame = save + Vector3.new(0,25,0); r.AssemblyLinearVelocity = Vector3.zero
+                                task.wait(0.08)
+                                if isOn() and r.Parent then r.CFrame = save; r.AssemblyLinearVelocity = Vector3.zero end
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.03)
+        end
+    end, function(orig) if orig then local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if r then pcall(function() r.CFrame = orig; r.AssemblyLinearVelocity = Vector3.zero end) end end end)
+
+    antiBtn("antiCopy", "مضاد النسخ", 0.02, 709, 0.47, function(isOn)
+        local names = {"nanmewelldoit", "nan_fm7"}
+        local i = 1
+        while isOn() do
+            local re = RS:FindFirstChild("RemoteEvent")
+            if re and re:IsA("RemoteEvent") then pcall(function() re:FireServer("ChangeSkinByName", names[i]) end) end
+            i = i % #names + 1
+            task.wait(0.1)
+        end
+    end, nil)
+
+    antiBtn("antiEmote", "مضاد الايموت", 0.51, 709, 0.47, function(isOn)
+        while isOn() do pcall(function() sendCmd("!Undance") end); task.wait(0.15) end
+    end, nil)
+
+    antiBtn("antiHuman", "مضاد البشر", 0.02, 757, 0.47, function(isOn, orig)
+        while isOn() do
+            local c = LP.Character
+            local h = c and c:FindFirstChildOfClass("Humanoid")
+            local r = c and c:FindFirstChild("HumanoidRootPart")
+            if h and r and r.Parent then
+                local cam = WS.CurrentCamera
+                local ccf, ct, cs
+                pcall(function()
+                    ccf = cam.CFrame; ct = cam.CameraType; cs = cam.CameraSubject
+                    cam.CameraType = Enum.CameraType.Scriptable; cam.CFrame = ccf
+                    r.CFrame = CFrame.new(999999,999999,999999); task.wait(0.05)
+                    if r.Parent then r.CFrame = orig or r.CFrame end
+                    cam.CFrame = ccf; cam.CameraType = ct or Enum.CameraType.Custom
+                    if cs and cs.Parent then cam.CameraSubject = cs elseif h.Parent then cam.CameraSubject = h end
+                end)
+            end
+            task.wait(0.6)
+        end
+    end, function(orig) if orig then local r = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if r then pcall(function() r.CFrame = orig end) end end end)
+
+    antiBtn("antiNvSpam", "سبام مضاد الرؤية", 0.51, 757, 0.47, function(isOn)
+        while isOn() do pcall(function() sendCmd("!unnv") end); pcall(function() sendCmd("!unwarp") end); task.wait(0.05) end
+    end, nil)
+
+    task.spawn(function()
+        local last
+        while true do
+            task.wait(1.5)
+            local ecc = getECC()
+            if ecc ~= last then
+                last = ecc
+                if ecc then installHook(); if st.nvActive or st.warpActive then blockExec(true) end end
+            end
+        end
+    end)
+end
+
+-- VOID
+do
+    label(pages.void, "الانتقال للفضاء", UDim2.fromOffset(10, 10), UDim2.new(1, -20, 0, 20), 16, C.text, Enum.Font.GothamBold)
+    local voidBtn = mkBtn(pages.void, "تفعيل (3 ثواني)", UDim2.fromOffset(10, 45), UDim2.new(1, -20, 0, 45), C.bg)
+    voidBtn.MouseButton1Click:Connect(function()
+        local c = LP.Character; if not c then return end
+        local h = c:FindFirstChild("HumanoidRootPart"); if not h then return end
+        local saved = h.CFrame
+        pcall(function() h.CFrame = CFrame.new(9999999999, 999999, h.Position.Z) end)
+        voidBtn.Text = "جاري العودة..."
+        task.delay(3, function()
+            local c2 = LP.Character
+            if c2 and c2:FindFirstChild("HumanoidRootPart") then pcall(function() c2.HumanoidRootPart.CFrame = saved end) end
+            voidBtn.Text = "تفعيل (3 ثواني)"
+        end)
+    end)
+end
+
+-- SPAM
+do
+    local SPAM_FILE = "FFFV2_SpamConfig.json"
+    local spamCommands = {
+        {text = "/explode", repeatCount = 10, template = ""},
+        {text = "/re", repeatCount = 10, template = ""},
+        {text = "/res", repeatCount = 10, template = ""},
+        {text = "/clogs", repeatCount = 10, template = ""},
+        {text = "/logs", repeatCount = 10, template = ""},
+        {text = "/kill", repeatCount = 10, template = ""},
+    }
+    local newCmdRepeat = 10
+    local function loadSpamConfig()
+        pcall(function()
+            if isfile and isfile(SPAM_FILE) then
+                local d = HS:JSONDecode(readfile(SPAM_FILE))
+                if d and d.commands then spamCommands = d.commands end
+            end
+        end)
+    end
+    local function saveSpamConfig()
+        pcall(function()
+            if writefile then writefile(SPAM_FILE, HS:JSONEncode({commands = spamCommands})) end
+        end)
+    end
+    loadSpamConfig()
+    label(pages.spam, "سبام FFFV2", UDim2.fromOffset(10, 10), UDim2.new(1, -20, 0, 20), 16, C.text, Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+    local navBar = make("Frame", {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.fromOffset(10, 35), BackgroundColor3 = C.panel2, ZIndex = 5}, pages.spam)
+    corner(navBar, 6)
+    local navSend = mkBtn(navBar, "الإرسال", UDim2.fromOffset(2, 2), UDim2.new(0.5, -4, 1, -4), C.white, C.black)
+    local navBuild = mkBtn(navBar, "محرر الأوامر", UDim2.new(0.5, 2, 0, 2), UDim2.new(0.5, -4, 1, -4), C.bg, C.text)
+    local sendFrame = make("Frame", {Size = UDim2.new(1, -20, 1, -75), Position = UDim2.fromOffset(10, 70), BackgroundTransparency = 1, ZIndex = 5}, pages.spam)
+    local buildFrame = make("Frame", {Size = UDim2.new(1, -20, 1, -75), Position = UDim2.fromOffset(10, 70), BackgroundTransparency = 1, Visible = false, ZIndex = 5}, pages.spam)
+    local function switchSpamTab(isSend)
+        sendFrame.Visible = isSend; buildFrame.Visible = not isSend
+        navSend.BackgroundColor3 = isSend and C.white or C.bg; navSend.TextColor3 = isSend and C.black or C.text
+        navBuild.BackgroundColor3 = not isSend and C.white or C.bg; navBuild.TextColor3 = not isSend and C.black or C.text
+    end
+    navSend.MouseButton1Click:Connect(function() switchSpamTab(true) end)
+    navBuild.MouseButton1Click:Connect(function() switchSpamTab(false) end)
+    switchSpamTab(true)
+
+    local useFullName = false
+    local selectedPlayers = {}
+    local targetToggleBtn = mkBtn(sendFrame, "حرفين", UDim2.fromOffset(0, 0), UDim2.new(0.35, -5, 0, 25), C.panel2)
+    local targetLabel = label(sendFrame, "الهدف: لم يتم اختيار", UDim2.new(0.35, 5, 0, 0), UDim2.new(0.65, 0, 0, 25), 11, C.dim, Enum.Font.Gotham, Enum.TextXAlignment.Left)
+    local playerListScroll = make("ScrollingFrame", {Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = C.bg, BorderSizePixel = 0, ScrollBarThickness = 2, ScrollBarImageColor3 = C.line, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = 5}, sendFrame)
+    corner(playerListScroll, 6); stroke(playerListScroll, C.line, 1)
+    make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), VerticalAlignment = Enum.VerticalAlignment.Center}, playerListScroll)
+    make("UIPadding", {PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5)}, playerListScroll)
+    local playerButtons = {}
+    local function getSelectedTargets()
+        local list = {}
+        for name in pairs(selectedPlayers) do table.insert(list, useFullName and name or string.sub(name, 1, 2)) end
+        return table.concat(list, ",")
+    end
+    local function updateTargetLabel()
+        local tgt = getSelectedTargets()
+        if tgt == "" then targetLabel.Text = "الهدف: لم يتم اختيار"; targetLabel.TextColor3 = C.dim
+        else targetLabel.Text = "الهدف: " .. tgt; targetLabel.TextColor3 = C.white end
+    end
+    targetToggleBtn.MouseButton1Click:Connect(function()
+        useFullName = not useFullName
+        targetToggleBtn.Text = useFullName and "اسم كامل" or "حرفين"
+        targetToggleBtn.BackgroundColor3 = useFullName and C.white or C.panel2
+        targetToggleBtn.TextColor3 = useFullName and C.black or C.text
+        updateTargetLabel()
+    end)
+    local function updatePlayerList()
+        for _, b in pairs(playerButtons) do b:Destroy() end
+        playerButtons = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                local b = mkBtn(playerListScroll, p.Name, UDim2.new(), UDim2.fromOffset(80, 24), C.panel2, C.dim)
+                b.TextSize = 10; b.LayoutOrder = p.UserId % 1000000
+                playerButtons[p.Name] = b
+                if selectedPlayers[p.Name] then b.BackgroundColor3 = C.white; b.TextColor3 = C.black end
+                b.MouseButton1Click:Connect(function()
+                    if selectedPlayers[p.Name] then selectedPlayers[p.Name] = nil; b.BackgroundColor3 = C.panel2; b.TextColor3 = C.dim
+                    else selectedPlayers[p.Name] = true; b.BackgroundColor3 = C.white; b.TextColor3 = C.black end
+                    updateTargetLabel()
+                end)
+            end
+        end
+    end
+    updatePlayerList()
+    Players.PlayerAdded:Connect(updatePlayerList)
+    Players.PlayerRemoving:Connect(function() task.wait(0.5) updatePlayerList(); updateTargetLabel() end)
+
+    local SPAM_V1 = ";NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs ;NV ;RE logs ;Warp ;RE logs"
+    local SPAM_V2 = ";NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE ;NV ;RE ;Warp ;RE"
+    local cmdInpBox = mkBox(sendFrame, "النص أو الأوامر...", UDim2.fromOffset(0, 95), UDim2.new(1, 0, 0, 80))
+    cmdInpBox.MultiLine = true; cmdInpBox.TextWrapped = true
+    cmdInpBox.TextXAlignment = Enum.TextXAlignment.Left; cmdInpBox.TextYAlignment = Enum.TextYAlignment.Top
+    local function applyTargetsToText(baseText)
+        local tgt = getSelectedTargets()
+        if tgt == "" then cmdInpBox.Text = baseText; return end
+        local parts = string.split(baseText, ";")
+        local newParts = {}
+        for _, part in ipairs(parts) do
+            local trimmed = string.gsub(part, "^%s*(.-)%s*$", "%1")
+            if trimmed ~= "" then
+                if trimmed:find(tgt, 1, true) then table.insert(newParts, trimmed)
+                else table.insert(newParts, trimmed .. " " .. tgt) end
+            end
+        end
+        if #newParts > 0 then cmdInpBox.Text = ";" .. table.concat(newParts, " ;") end
+    end
+    local v1Btn = mkBtn(sendFrame, "تعبئة V1", UDim2.fromOffset(0, 185), UDim2.new(0.5, -5, 0, 30), C.panel2)
+    local v2Btn = mkBtn(sendFrame, "تعبئة V2", UDim2.new(0.5, 5, 0, 185), UDim2.new(0.5, -5, 0, 30), C.panel2)
+    v1Btn.MouseButton1Click:Connect(function() applyTargetsToText(SPAM_V1) end)
+    v2Btn.MouseButton1Click:Connect(function() applyTargetsToText(SPAM_V2) end)
+    local genCmdsBtn = mkBtn(sendFrame, "توليد أوامر المحرر", UDim2.fromOffset(0, 220), UDim2.new(1, 0, 0, 35), C.panel2, C.text)
+    genCmdsBtn.MouseButton1Click:Connect(function()
+        local tgt = getSelectedTargets()
+        if tgt == "" then tgt = "TARGET" end
+        local generated = {}
+        for _, cmd in ipairs(spamCommands) do
+            local actual
+            if cmd.template and cmd.template ~= "" then actual = string.gsub(cmd.template, "{target}", tgt)
+            else actual = cmd.text .. " " .. tgt end
+            for _ = 1, (cmd.repeatCount or 1) do table.insert(generated, actual) end
+        end
+        cmdInpBox.Text = table.concat(generated, " ")
+    end)
+    local isSpamming = false
+    local spamToken = 0
+    local function sendSpam(cmd)
+        local hd = RS:FindFirstChild("HDAdminHDClient")
+        if hd then
+            local sig = hd:FindFirstChild("Signals")
+            if sig then
+                local rcs = sig:FindFirstChild("RequestCommandSilent")
+                if rcs then
+                    if rcs:IsA("RemoteFunction") then pcall(function() rcs:InvokeServer(cmd) end)
+                    else pcall(function() rcs:FireServer(cmd) end) end
+                    return
+                end
+            end
+        end
+        local ev = RS:FindFirstChild("Events")
+        if ev and ev:FindFirstChild("SendMessage") then pcall(function() ev.SendMessage:FireServer(cmd) end); return end
+        local ch = RS:FindFirstChild("DefaultChatSystemChatEvents")
+        if ch then
+            local s = ch:FindFirstChild("SayMessageRequest")
+            if s then pcall(function() s:FireServer(cmd, "All") end) end
+        end
+    end
+    local spamBtn = mkBtn(sendFrame, "بدء الإرسال", UDim2.fromOffset(0, 265), UDim2.new(1, -20, 0, 40), C.panel2, C.text)
+    spamBtn.TextSize = 14
+    spamBtn.MouseButton1Click:Connect(function()
+        if isSpamming then
+            isSpamming = false; spamToken = spamToken + 1
+            spamBtn.Text = "بدء الإرسال"; spamBtn.BackgroundColor3 = C.panel2; spamBtn.TextColor3 = C.text
+        else
+            local msg = cmdInpBox.Text
+            if msg == "" then return end
+            isSpamming = true; spamToken = spamToken + 1
+            local myToken = spamToken
+            spamBtn.Text = "إيقاف الإرسال"; spamBtn.BackgroundColor3 = C.white; spamBtn.TextColor3 = C.black
+            task.spawn(function()
+                while isSpamming and spamToken == myToken do pcall(sendSpam, msg); task.wait(0.05) end
+            end)
+        end
+    end)
+    local addRow = make("Frame", {Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 1}, buildFrame)
+    local newCmdInp = mkBox(addRow, "أمر جديد مثل /re", UDim2.fromOffset(0, 0), UDim2.new(0.7, -5, 1, 0))
+    local addCmdBtn = mkBtn(addRow, "+ إضافة", UDim2.new(0.7, 5, 0, 0), UDim2.new(0.3, -5, 1, 0), C.panel, C.text)
+    local cmdListScroll = make("ScrollingFrame", {Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, 0, 1, -40), BackgroundColor3 = C.panel2, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = C.text, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y}, buildFrame)
+    corner(cmdListScroll, 8)
+    make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, cmdListScroll)
+    make("UIPadding", {PaddingTop = UDim.new(0, 5), PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5)}, cmdListScroll)
+    local function refreshList()
+        for _, c in ipairs(cmdListScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+        for i, cmd in ipairs(spamCommands) do
+            local row = make("Frame", {Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = C.bg, LayoutOrder = i, ZIndex = 6}, cmdListScroll)
+            corner(row, 6)
+            make("TextLabel", {Size = UDim2.new(0.5, 0, 0, 20), Position = UDim2.fromOffset(10, 8), BackgroundTransparency = 1, Text = cmd.text .. " x" .. cmd.repeatCount, TextColor3 = C.text, Font = Enum.Font.Code, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7}, row)
+            local delBtn = make("TextButton", {Size = UDim2.new(0, 50, 0, 24), Position = UDim2.new(1, -60, 0.5, -12), BackgroundColor3 = C.panel2, Text = "حذف", TextColor3 = C.text, Font = Enum.Font.GothamBold, TextSize = 10, ZIndex = 7}, row)
+            corner(delBtn, 4)
+            delBtn.MouseButton1Click:Connect(function() table.remove(spamCommands, i); saveSpamConfig(); refreshList() end)
+        end
+    end
+    addCmdBtn.MouseButton1Click:Connect(function()
+        local t = newCmdInp.Text
+        if t == "" then return end
+        table.insert(spamCommands, {text = t, repeatCount = newCmdRepeat, template = ""})
+        saveSpamConfig(); refreshList(); newCmdInp.Text = ""
+    end)
+    refreshList()
+end
+
+print("[FFFV2] Loaded OK")
+return true
+end)()
+
+if FFF then print("[FFFV2] Ready!") end
